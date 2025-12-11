@@ -8,12 +8,10 @@ on:
   pull_request_review_comment:
     types: [created]
 
-env:
-  TELEGRAM_PARSE_MODE: "MarkdownV2"
-
 jobs:
   notify:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -24,7 +22,6 @@ jobs:
       - name: Extract PR metadata
         id: pr-meta
         run: |
-          # Базовые данные PR
           PR_NUMBER=${{ github.event.number || github.event.pull_request.number }}
           PR_TITLE="${{ github.event.pull_request.title }}"
           PR_AUTHOR="${{ github.event.pull_request.user.login }}"
@@ -32,46 +29,41 @@ jobs:
           PR_STATE="${{ github.event.pull_request.state }}"
           PR_BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
           PR_HEAD_BRANCH="${{ github.event.pull_request.head.ref }}"
-          
-          # Экранирование для MarkdownV2
-          escape_markdown() {
-            echo "$1" | sed -E 's/([_*\[\]()~`>#+=|{}\.!-])/\\\1/g'
-          }
-          
+
           echo "PR_NUMBER=${PR_NUMBER}" >> $GITHUB_OUTPUT
-          echo "PR_TITLE=$(escape_markdown "${PR_TITLE}")" >> $GITHUB_OUTPUT
-          echo "PR_AUTHOR=$(escape_markdown "${PR_AUTHOR}")" >> $GITHUB_OUTPUT
+          echo "PR_TITLE=${PR_TITLE}" >> $GITHUB_OUTPUT
+          echo "PR_AUTHOR=${PR_AUTHOR}" >> $GITHUB_OUTPUT
           echo "PR_URL=${PR_URL}" >> $GITHUB_OUTPUT
           echo "PR_STATE=${PR_STATE}" >> $GITHUB_OUTPUT
-          echo "PR_BASE_BRANCH=$(escape_markdown "${PR_BASE_BRANCH}")" >> $GITHUB_OUTPUT
-          echo "PR_HEAD_BRANCH=$(escape_markdown "${PR_HEAD_BRANCH}")" >> $GITHUB_OUTPUT
-          
-          # Получаем количество коммитов и измененных файлов
+          echo "PR_BASE_BRANCH=${PR_BASE_BRANCH}" >> $GITHUB_OUTPUT
+          echo "PR_HEAD_BRANCH=${PR_HEAD_BRANCH}" >> $GITHUB_OUTPUT
+
           if [[ "${{ github.event.action }}" != "closed" ]]; then
-            COMMIT_COUNT=$(git rev-list --count ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} 2>/dev/null || echo "N/A")
+            COMMIT_COUNT=$(git rev-list --count ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} 2>/dev/null || echo "0")
             CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} 2>/dev/null | wc -l || echo "0")
-            
+
             echo "COMMIT_COUNT=${COMMIT_COUNT}" >> $GITHUB_OUTPUT
             echo "CHANGED_FILES=${CHANGED_FILES}" >> $GITHUB_OUTPUT
-            
-            # Получаем лейблы PR
+
             LABELS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               ${{ github.event.pull_request.issue_url }}/labels | jq -r '.[].name' | tr '\n' ', ' | sed 's/, $//' || echo "")
-            
+
             if [[ -n "${LABELS}" ]]; then
-              echo "PR_LABELS=$(escape_markdown "${LABELS}")" >> $GITHUB_OUTPUT
+              echo "PR_LABELS=${LABELS}" >> $GITHUB_OUTPUT
+            else
+              echo "PR_LABELS=" >> $GITHUB_OUTPUT
             fi
           fi
-          
-          # Для закрытого PR
+
           if [[ "${{ github.event.action }}" == "closed" ]]; then
             echo "MERGED=${{ github.event.pull_request.merged }}" >> $GITHUB_OUTPUT
-            
-            # Получаем кто закрыл PR
+
             if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
-              echo "CLOSED_BY=$(escape_markdown "${{ github.event.pull_request.merged_by.login }}")" >> $GITHUB_OUTPUT
+              MERGED_BY="${{ github.event.pull_request.merged_by.login }}"
+              echo "CLOSED_BY=${MERGED_BY}" >> $GITHUB_OUTPUT
             else
-              echo "CLOSED_BY=$(escape_markdown "${{ github.event.pull_request.closed_by.login }}")" >> $GITHUB_OUTPUT
+              CLOSED_BY="${{ github.event.pull_request.closed_by.login }}"
+              echo "CLOSED_BY=${CLOSED_BY}" >> $GITHUB_OUTPUT
             fi
           fi
 
@@ -79,7 +71,7 @@ jobs:
         id: format-message
         run: |
           MESSAGE=""
-          
+
           case "${{ github.event_name }}/${{ github.event.action }}" in
             "pull_request/opened"|"pull_request/reopened")
               STATUS_EMOJI="🚀"
@@ -88,66 +80,73 @@ jobs:
                 STATUS_EMOJI="↩️"
                 STATUS_TEXT="PR Переоткрыт"
               fi
-              
-              MESSAGE="${STATUS_EMOJI} *${STATUS_TEXT}*
-          
-          📌 *#${{ steps.pr-meta.outputs.PR_NUMBER }}: ${{ steps.pr-meta.outputs.PR_TITLE }}*
-          👤 *Автор:* ${{ steps.pr-meta.outputs.PR_AUTHOR }}
-          🌿 *Ветка:* \`${{ steps.pr-meta.outputs.PR_HEAD_BRANCH }}\` → \`${{ steps.pr-meta.outputs.PR_BASE_BRANCH }}\`
-          📊 *Коммитов:* ${{ steps.pr-meta.outputs.COMMIT_COUNT }} | *Файлов:* ${{ steps.pr-meta.outputs.CHANGED_FILES }}"
-              
+
+              MESSAGE="${STATUS_EMOJI} ${STATUS_TEXT}
+
+          📌 PR #${{ steps.pr-meta.outputs.PR_NUMBER }}: ${{ steps.pr-meta.outputs.PR_TITLE }}
+          👤 Автор: ${{ steps.pr-meta.outputs.PR_AUTHOR }}
+          🌿 Ветка: ${{ steps.pr-meta.outputs.PR_HEAD_BRANCH }} → ${{ steps.pr-meta.outputs.PR_BASE_BRANCH }}
+          📊 Изменений: ${{ steps.pr-meta.outputs.COMMIT_COUNT }} коммит(ов) | ${{ steps.pr-meta.outputs.CHANGED_FILES }} файл(ов)"
+
               if [[ -n "${{ steps.pr-meta.outputs.PR_LABELS }}" ]]; then
                 MESSAGE="${MESSAGE}
-          🏷️ *Лейблы:* ${{ steps.pr-meta.outputs.PR_LABELS }}"
+          🏷️ Лейблы: ${{ steps.pr-meta.outputs.PR_LABELS }}"
               fi
-              
+
               MESSAGE="${MESSAGE}
-          🔗 [Открыть PR](${{ steps.pr-meta.outputs.PR_URL }})"
+
+          Открыть PR | ${{ steps.pr-meta.outputs.PR_URL }}"
               ;;
-              
+
             "pull_request/synchronize")
-              MESSAGE="📝 *PR Обновлен*
-          
-          📌 *#${{ steps.pr-meta.outputs.PR_NUMBER }}: ${{ steps.pr-meta.outputs.PR_TITLE }}*
-          👤 *Автор:* ${{ steps.pr-meta.outputs.PR_AUTHOR }}
-          📊 *Коммитов:* ${{ steps.pr-meta.outputs.COMMIT_COUNT }} | *Файлов:* ${{ steps.pr-meta.outputs.CHANGED_FILES }}
-          🌿 \`${{ steps.pr-meta.outputs.PR_HEAD_BRANCH }}\` → \`${{ steps.pr-meta.outputs.PR_BASE_BRANCH }}\`
-          🔗 [Открыть PR](${{ steps.pr-meta.outputs.PR_URL }})"
+              MESSAGE="📝 PR Обновлен
+
+          📌 PR #${{ steps.pr-meta.outputs.PR_NUMBER }}: ${{ steps.pr-meta.outputs.PR_TITLE }}
+          👤 Автор: ${{ steps.pr-meta.outputs.PR_AUTHOR }}
+          📊 Изменений: ${{ steps.pr-meta.outputs.COMMIT_COUNT }} коммит(ов) | ${{ steps.pr-meta.outputs.CHANGED_FILES }} файл(ов)
+          🌿 ${{ steps.pr-meta.outputs.PR_HEAD_BRANCH }} → ${{ steps.pr-meta.outputs.PR_BASE_BRANCH }}
+
+          Открыть PR | ${{ steps.pr-meta.outputs.PR_URL }}"
               ;;
-              
+
             "pull_request/closed")
               if [[ "${{ steps.pr-meta.outputs.MERGED }}" == "true" ]]; then
                 MERGE_EMOJI="✅"
                 MERGE_TEXT="Влит"
-                MERGER="👤 *Влил:* ${{ steps.pr-meta.outputs.CLOSED_BY }}"
+                MERGER="👤 Влил: ${{ steps.pr-meta.outputs.CLOSED_BY }}"
               else
                 MERGE_EMOJI="❌"
                 MERGE_TEXT="Закрыт"
-                MERGER="👤 *Закрыл:* ${{ steps.pr-meta.outputs.CLOSED_BY }}"
+                MERGER="👤 Закрыл: ${{ steps.pr-meta.outputs.CLOSED_BY }}"
               fi
-              
-              MESSAGE="${MERGE_EMOJI} *PR Завершен \\- ${MERGE_TEXT}*
-          
-          📌 *#${{ steps.pr-meta.outputs.PR_NUMBER }}: ${{ steps.pr-meta.outputs.PR_TITLE }}*
-          👤 *Автор:* ${{ steps.pr-meta.outputs.PR_AUTHOR }}
+
+              DURATION=$(( ($(date +%s) - $(date -d "${{ github.event.pull_request.created_at }}" +%s)) / 86400 ))
+
+              MESSAGE="${MERGE_EMOJI} PR ${MERGE_TEXT}
+
+          📌 PR #${{ steps.pr-meta.outputs.PR_NUMBER }}: ${{ steps.pr-meta.outputs.PR_TITLE }}
+          👤 Автор: ${{ steps.pr-meta.outputs.PR_AUTHOR }}
           ${MERGER}
-          ⏱️ *Продолжительность:* $(( ($(date +%s) - $(date -d "${{ github.event.pull_request.created_at }}" +%s)) / 86400 )) дн.
-          🔗 [Посмотреть PR](${{ steps.pr-meta.outputs.PR_URL }})"
+          ⏱️ Продолжительность: ${DURATION} дн.
+
+          Посмотреть PR | ${{ steps.pr-meta.outputs.PR_URL }}"
               ;;
-              
+
             "pull_request/ready_for_review")
-              MESSAGE="📋 *PR Готов к ревью*
-          
-          📌 *#${{ steps.pr-meta.outputs.PR_NUMBER }}: ${{ steps.pr-meta.outputs.PR_TITLE }}*
-          👤 *Автор:* ${{ steps.pr-meta.outputs.PR_AUTHOR }}
-          🔗 [Начать ревью](${{ steps.pr-meta.outputs.PR_URL }})"
+              MESSAGE="📋 PR Готов к ревью
+
+          📌 PR #${{ steps.pr-meta.outputs.PR_NUMBER }}: ${{ steps.pr-meta.outputs.PR_TITLE }}
+          👤 Автор: ${{ steps.pr-meta.outputs.PR_AUTHOR }}
+
+          Начать ревью | ${{ steps.pr-meta.outputs.PR_URL }}"
               ;;
-              
+
             "pull_request_review/submitted")
               REVIEW_STATE="${{ github.event.review.state }}"
               REVIEWER="${{ github.event.review.user.login }}"
               REVIEW_BODY="${{ github.event.review.body }}"
-              
+              PR_TITLE="${{ github.event.pull_request.title }}"
+
               case $REVIEW_STATE in
                 "approved")
                   EMOJI="✅"
@@ -166,61 +165,69 @@ jobs:
                   TEXT="оставил отзыв"
                   ;;
               esac
-              
-              MESSAGE="${EMOJI} *Новый отзыв на PR*
-          
-          📌 *#${{ github.event.pull_request.number }}: ${{ steps.pr-meta.outputs.PR_TITLE }}*
-          👤 *Ревьювер:* ${REVIEWER}
-          📋 *Статус:* ${TEXT}"
-              
-              # Добавляем текст отзыва если он есть (обрезаем до 200 символов)
+
+              MESSAGE="${EMOJI} Новый отзыв на PR
+
+          📌 PR #${{ github.event.pull_request.number }}: ${PR_TITLE}
+          👤 Ревьювер: ${REVIEWER}
+          📋 Статус: ${TEXT}"
+
               if [[ -n "${REVIEW_BODY}" && "${REVIEW_BODY}" != "null" ]]; then
                 REVIEW_PREVIEW=$(echo "${REVIEW_BODY}" | head -c 200)
                 if [[ ${#REVIEW_BODY} -gt 200 ]]; then
                   REVIEW_PREVIEW="${REVIEW_PREVIEW}..."
                 fi
-                ESCAPED_REVIEW=$(echo "${REVIEW_PREVIEW}" | sed -E 's/([_*\[\]()~`>#+=|{}\.!-])/\\\1/g')
                 MESSAGE="${MESSAGE}
-          💭 *Комментарий:* ${ESCAPED_REVIEW}"
+          💭 Комментарий: ${REVIEW_PREVIEW}"
               fi
-              
+
               MESSAGE="${MESSAGE}
-          🔗 [Посмотреть отзыв](${{ github.event.review.html_url }})"
+
+          Посмотреть отзыв | ${{ github.event.review.html_url }}"
               ;;
-              
+
             "pull_request_review/dismissed")
-              MESSAGE="🗑️ *Отзыв отклонен*
-          
-          📌 *#${{ github.event.pull_request.number }}: ${{ steps.pr-meta.outputs.PR_TITLE }}*
-          👤 *Кем:* ${{ github.event.review.user.login }}
-          🔗 [Открыть PR](${{ steps.pr-meta.outputs.PR_URL }})"
+              REVIEWER="${{ github.event.review.user.login }}"
+              PR_TITLE="${{ github.event.pull_request.title }}"
+
+              MESSAGE="🗑️ Отзыв отклонен
+
+          📌 PR #${{ github.event.pull_request.number }}: ${PR_TITLE}
+          👤 Кем: ${REVIEWER}
+
+          Открыть PR | ${{ steps.pr-meta.outputs.PR_URL }}"
               ;;
-              
+
             "pull_request_review_comment/created")
               COMMENTER="${{ github.event.comment.user.login }}"
-              COMMENT_PREVIEW=$(echo "${{ github.event.comment.body }}" | head -c 150)
-              if [[ ${#COMMENT_PREVIEW} -gt 150 ]]; then
+              PR_TITLE="${{ github.event.pull_request.title }}"
+              COMMENT_BODY="${{ github.event.comment.body }}"
+
+              COMMENT_PREVIEW=$(echo "${COMMENT_BODY}" | head -c 150)
+              if [[ ${#COMMENT_BODY} -gt 150 ]]; then
                 COMMENT_PREVIEW="${COMMENT_PREVIEW}..."
               fi
-              ESCAPED_COMMENT=$(echo "${COMMENT_PREVIEW}" | sed -E 's/([_*\[\]()~`>#+=|{}\.!-])/\\\1/g')
-              
-              MESSAGE="💬 *Новый комментарий в ревью*
-          
-          📌 *#${{ github.event.pull_request.number }}: ${{ steps.pr-meta.outputs.PR_TITLE }}*
-          👤 *Автор:* ${COMMENTER}
-          💭 *Текст:* ${ESCAPED_COMMENT}
-          🔗 [Ответить](${{ github.event.comment.html_url }})"
+
+              MESSAGE="💬 Новый комментарий в ревью
+
+          📌 PR #${{ github.event.pull_request.number }}: ${PR_TITLE}
+          👤 Автор: ${COMMENTER}
+          💭 Текст: ${COMMENT_PREVIEW}
+
+          Ответить | ${{ github.event.comment.html_url }}"
               ;;
           esac
-          
-          # Добавляем информацию о репозитории в заголовок
+
           REPO_NAME="${{ github.repository }}"
-          FINAL_MESSAGE="*${REPO_NAME}*
+          FINAL_MESSAGE="${REPO_NAME}
+
           ${MESSAGE}"
-          
-          echo "message<<EOF" >> $GITHUB_OUTPUT
-          echo "${FINAL_MESSAGE}" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+
+          {
+            echo "message<<EOF"
+            echo "${FINAL_MESSAGE}"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Send notification to Telegram
         uses: appleboy/telegram-action@master
@@ -228,20 +235,19 @@ jobs:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: ${{ steps.format-message.outputs.message }}
-          parse_mode: "MarkdownV2"
           disable_web_page_preview: true
 
-      - name: Send critical notifications to admin channel
+      - name: Send critical notifications
         if: github.event.action == 'closed' && steps.pr-meta.outputs.MERGED == 'true'
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
-            🎉 *PR успешно влит в ${{ steps.pr-meta.outputs.PR_BASE_BRANCH }}*
-            
-            📌 *#${{ steps.pr-meta.outputs.PR_NUMBER }}: ${{ steps.pr-meta.outputs.PR_TITLE }}*
-            👤 *Автор:* ${{ steps.pr-meta.outputs.PR_AUTHOR }}
-            👑 *Влил:* ${{ steps.pr-meta.outputs.CLOSED_BY }}
-            🔗 [Посмотреть](${{ steps.pr-meta.outputs.PR_URL }})
-          parse_mode: "MarkdownV2"
+            🎉 PR успешно влит в ${{ steps.pr-meta.outputs.PR_BASE_BRANCH }}
+
+            📌 PR #${{ steps.pr-meta.outputs.PR_NUMBER }}: ${{ steps.pr-meta.outputs.PR_TITLE }}
+            👤 Автор: ${{ steps.pr-meta.outputs.PR_AUTHOR }}
+            👑 Влил: ${{ steps.pr-meta.outputs.CLOSED_BY }}
+
+            Посмотреть | ${{ steps.pr-meta.outputs.PR_URL }}
