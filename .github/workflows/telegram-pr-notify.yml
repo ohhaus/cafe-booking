@@ -236,18 +236,3 @@ jobs:
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: ${{ steps.format-message.outputs.message }}
           disable_web_page_preview: true
-
-      - name: Send critical notifications
-        if: github.event.action == 'closed' && steps.pr-meta.outputs.MERGED == 'true'
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          message: |
-            🎉 PR успешно влит в ${{ steps.pr-meta.outputs.PR_BASE_BRANCH }}
-
-            📌 PR #${{ steps.pr-meta.outputs.PR_NUMBER }}: ${{ steps.pr-meta.outputs.PR_TITLE }}
-            👤 Автор: ${{ steps.pr-meta.outputs.PR_AUTHOR }}
-            👑 Влил: ${{ steps.pr-meta.outputs.CLOSED_BY }}
-
-            Посмотреть | ${{ steps.pr-meta.outputs.PR_URL }}
