@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from src.api import main_router
+from api import main_router
 
 
 app = FastAPI(title='Cafe Booking')

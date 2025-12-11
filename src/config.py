@@ -1,3 +1,5 @@
+import secrets
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -20,10 +22,24 @@ class DatabaseSettings(BaseSettings):
     )
 
 
+BASE_CONFIG = DatabaseSettings.model_config
+
+
+class AuthSettings(BaseSettings):
+    """Настройки авторизации."""
+
+    secret_key: str = secrets.token_urlsafe(32)
+    access_token_expire_minutes: int = 60
+    algorithm: str = 'HS256'
+
+    model_config = BASE_CONFIG | {'env_prefix': 'AUTH_'}
+
+
 class Settings(BaseSettings):
     """Корневой класс настроек."""
 
     database: DatabaseSettings = DatabaseSettings()
+    auth: AuthSettings = AuthSettings()
 
     model_config = SettingsConfigDict(
         env_file='.env',
