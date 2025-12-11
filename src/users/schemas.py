@@ -1,6 +1,14 @@
 import re
 from typing import Annotated, Self
 
+from constants import (
+    MAX_PASSWORD_LENGTH,
+    MAX_USERNAME_LENGTH,
+    MIN_PASSWORD_LENGTH,
+    MIN_TG_LENGTH,
+    MIN_USERNAME_LENGTH,
+)
+from models import UserRole
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -12,14 +20,6 @@ from pydantic import (
 from pydantic_extra_types.phone_numbers import PhoneNumber
 from python_usernames import is_safe_username
 
-from constants import (
-    MAX_PASSWORD_LENGTH,
-    MAX_USERNAME_LENGTH,
-    MIN_PASSWORD_LENGTH,
-    MIN_TG_LENGTH,
-    MIN_USERNAME_LENGTH,
-)
-from models import UserRole
 from base_schemas import BaseRead
 
 

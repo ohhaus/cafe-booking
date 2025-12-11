@@ -1,18 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from database import get_async_session
-from dependencies import require_roles
 from crud import user_crud
+from dependencies import require_roles
+from fastapi import APIRouter, Depends, HTTPException, status
 from models import User, UserRole
 from schemas import UserCreate, UserRead, UserUpdate
-from services.decorators import log_action
+from sqlalchemy.ext.asyncio import AsyncSession
 from validators import (
     check_admin_permission,
     check_password,
     check_user_contacts,
     check_user_duplicate,
 )
+
+from database import get_async_session
+from services.decorators import log_action
+
 
 router = APIRouter()
 

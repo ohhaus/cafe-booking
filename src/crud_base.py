@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import Base, User
 
+
 ModelType = TypeVar('ModelType', bound=Base)
 
 

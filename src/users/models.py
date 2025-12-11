@@ -1,14 +1,14 @@
 from enum import IntEnum
 
-from sqlalchemy import CheckConstraint, Column, Integer, String
-from sqlalchemy.orm import relationship
-
 from constants import (
     MAX_PHONE_LENGTH,
     MAX_STRING_LENGTH,
     MAX_TG_LENGTH,
     MAX_USERNAME_LENGTH,
 )
+from sqlalchemy import CheckConstraint, Column, Integer, String
+from sqlalchemy.orm import relationship
+
 from database import Base
 
 

@@ -1,12 +1,12 @@
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import sys
-from logging.handlers import RotatingFileHandler
 from typing import Any
 
 from colorama import Fore, Style, init
-
 from constants import COUNT_FILES, MAX_BYTES
+
 
 init(strip=False, autoreset=True)
 

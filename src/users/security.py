@@ -5,6 +5,7 @@ from pwdlib import PasswordHash
 
 from config import settings
 
+
 SECRET_KEY = settings.auth.secret_key
 ALGORITHM = settings.auth.algorithm
 password_hash = PasswordHash.recommended()
