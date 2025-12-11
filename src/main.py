@@ -1,6 +1,8 @@
-# Это основной запускаемый файл.
-# Заменить содержимое своим кодом.
+from fastapi import FastAPI
 
-import sys
+from src.api import main_router
 
-print(sys.path)
+
+app = FastAPI(title='Cafe Booking')
+
+app.include_router(main_router)
