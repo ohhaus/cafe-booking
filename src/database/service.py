@@ -36,9 +36,8 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
     async def get(
         self,
+        id: str,
         session: AsyncSession,
-        *,
-        id: int,
     ) -> ModelType | None:
         """Получает объект по ID.
 
@@ -156,9 +155,8 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
     async def delete(
         self,
+        id: str,
         session: AsyncSession,
-        *,
-        id: int,
         commit: bool = True,
     ) -> ModelType | None:
         """Удаляет объект по ID.
@@ -172,7 +170,7 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             Удаленный объект или None если не найден
 
         """
-        db_obj = await self.get(session=session, id=id)
+        db_obj = await self.get(id, session)
 
         if db_obj:
             await session.delete(db_obj)
