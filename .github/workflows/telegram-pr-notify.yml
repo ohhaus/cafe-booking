@@ -231,12 +231,11 @@ jobs:
           parse_mode: "MarkdownV2"
           disable_web_page_preview: true
 
-      # Опционально: отправка в другой чат для важных событий
       - name: Send critical notifications to admin channel
         if: github.event.action == 'closed' && steps.pr-meta.outputs.MERGED == 'true'
         uses: appleboy/telegram-action@master
         with:
-          to: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
             🎉 *PR успешно влит в ${{ steps.pr-meta.outputs.PR_BASE_BRANCH }}*
