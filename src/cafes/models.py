@@ -53,11 +53,11 @@ class Cafe(Base):
         String(MAX_PHONE_LENGTH),
         nullable=False,
     )
-    description: Mapped[str] = mapped_column(
+    description: Mapped[Optional[str]] = mapped_column(
         String(MAX_DESCRIPTION_LENGTH),
         nullable=True,
     )
-    manager_ids: Mapped[list[User]] = relationship(
+    managers: Mapped[list[User]] = relationship(
         'User',
         secondary=cafes_managers,
         primaryjoin=id == cafes_managers.c.cafe_id,
