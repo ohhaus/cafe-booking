@@ -1,15 +1,16 @@
 from enum import IntEnum
+from typing import List, Optional
 
-from constants import (
+from config import (
     MAX_PHONE_LENGTH,
     MAX_STRING_LENGTH,
     MAX_TG_LENGTH,
     MAX_USERNAME_LENGTH,
 )
-from sqlalchemy import CheckConstraint, Column, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy import CheckConstraint, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from database import Base
+from src.database import Base
 
 
 class UserRole(IntEnum):
@@ -23,26 +24,54 @@ class UserRole(IntEnum):
 class User(Base):
     """Модель для пользователей."""
 
-    username = Column(String(MAX_USERNAME_LENGTH), unique=True)
-    email = Column(String(MAX_STRING_LENGTH), unique=True, nullable=True)
-    phone = Column(String(MAX_PHONE_LENGTH), unique=True)
-    tg_id = Column(String(MAX_TG_LENGTH), unique=True)
-    role = Column(Integer, nullable=False, default=UserRole.USER)
-    hashed_password = Column(String(MAX_STRING_LENGTH), nullable=False)
-
-    cafes = relationship(
-        'Cafe',
-        secondary='user_cafe',
-        back_populates='managers',
-        lazy='selectin',
+    username: Mapped[str] = mapped_column(
+        String(MAX_USERNAME_LENGTH),
+        unique=True,
+        nullable=False,
+    )
+    email: Mapped[Optional[str]] = mapped_column(
+        String(MAX_STRING_LENGTH),
+        unique=True,
+        nullable=True,
+    )
+    phone: Mapped[str] = mapped_column(
+        String(MAX_PHONE_LENGTH),
+        unique=True,
+        nullable=False,
+    )
+    tg_id: Mapped[Optional[str]] = mapped_column(
+        String(MAX_TG_LENGTH),
+        unique=True,
+        nullable=True,
+    )
+    role: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=UserRole.USER,
+    )
+    hashed_password: Mapped[str] = mapped_column(
+        String(MAX_STRING_LENGTH),
+        nullable=False,
     )
 
-    bookings = relationship('Booking', back_populates='user', lazy='selectin')
+    cafes: Mapped[List["Cafe"]] = relationship(
+        "Cafe",
+        secondary="cafes_managers",
+        back_populates="managers",
+        lazy="selectin",
+        init=False,
+    )
+    bookings: Mapped[List["Booking"]] = relationship(
+        "Booking",
+        back_populates="user",
+        lazy="selectin",
+        init=False,
+    )
 
     __table_args__ = (
         CheckConstraint(
-            'email IS NOT NULL OR phone IS NOT NULL',
-            name='check_email_or_phone_not_null',
+            "email IS NOT NULL OR phone IS NOT NULL",
+            name="check_email_or_phone_not_null",
         ),
     )
 

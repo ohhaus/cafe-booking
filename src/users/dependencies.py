@@ -10,7 +10,7 @@ from sqlalchemy.future import select
 
 from config import settings
 from database import get_async_session
-from services import log_action
+from services.decorators import log_action
 
 
 bearer_scheme = HTTPBearer(auto_error=False)

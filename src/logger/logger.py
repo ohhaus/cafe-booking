@@ -5,7 +5,7 @@ import sys
 from typing import Any
 
 from colorama import Fore, Style, init
-from constants import COUNT_FILES, MAX_BYTES
+from config import COUNT_FILES, MAX_BYTES
 
 
 init(strip=False, autoreset=True)

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from crud_base import CRUDBase
 
 
-class CRUDUser(CRUDBase):
+class UserService(CRUDBase):
     """CRUD для модели User."""
 
     async def create(
@@ -107,4 +107,4 @@ class CRUDUser(CRUDBase):
         return result.scalars().all()
 
 
-user_crud = CRUDUser(User)
+user_crud = UserService(User)
