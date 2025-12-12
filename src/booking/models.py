@@ -1,11 +1,11 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import ForeignKey, Date, UniqueConstraint, Enum, String, Index, Boolean
+from sqlalchemy import ForeignKey, Date, UniqueConstraint, Enum, String, Index, column
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.booking.constants import BookingStatus
+from src.booking.constants import BookingStatus, MAX_NOTES_LENGTH
 from src.database import Base
 
 
@@ -53,7 +53,7 @@ class Booking(Base):
         nullable=False,
     )
     note: Mapped[str] = mapped_column(
-        String(255),
+        String(MAX_NOTES_LENGTH),
         comment='Примечание к брони',
         nullable=False,
         default='',
@@ -82,13 +82,48 @@ class Booking(Base):
         back_populates='booking',
         uselist=False,
         lazy='selectin',
-        cascade='all, delete-orphan',
+        cascade='all',
     )
 
     __table_args__ = (
         Index('ix_booking_user_id', user_id),
         Index('ix_booking_cafe_date', cafe_id, booking_date),
     )
+
+    def activate_booking(self) -> None:
+        """
+        Активирует бронирование, устанавливая статус BookingStatus.ACTIVE.
+        Предполагается, что бронирование уже прошло проверку и подтверждено.
+        """
+        if self.booking_table_slot:
+            self.booking_table_slot.restore()
+        self.status = BookingStatus.ACTIVE
+
+    def complete_booking(self) -> None:
+        """
+        Завершает бронирование.
+        """
+        if self.booking_table_slot:
+            self.booking_table_slot.restore()
+        self.status = BookingStatus.COMPLETED
+
+    def cancel_booking(self) -> None:
+        """
+        Отменяет бронирование:
+        - Помечает BookingTableSlot как неактивный (soft delete)
+        - Меняет статус брони
+        """
+        if self.booking_table_slot:
+            self.booking_table_slot.soft_delete()
+        self.status = BookingStatus.CANCELED
+
+    def restore_booking(self) -> None:
+        """
+        Восстанавливает отменённое бронирование.
+        """
+        if self.booking_table_slot:
+            self.booking_table_slot.restore()
+        self.status = BookingStatus.CREATED
 
 
 class BookingTableSlot(Base):
@@ -135,22 +170,19 @@ class BookingTableSlot(Base):
         comment='Дата брони (копия из Booking, для уникальности '
                 'стол+слот+дата)',
     )
-    active: Mapped[bool] = mapped_column(
-        Boolean,
-        default=True,
-        nullable=False,
-        index=True,
-    )
 
     # --- связи ---
+    # Один к одному: одно бронирование --> одна запись BookingTableSlot
     booking: Mapped['Booking'] = relationship(
         back_populates='booking_table_slot',
         lazy='selectin',
     )
+    # Один стол может быть забронирован несколько раз
     table: Mapped['Table'] = relationship(
         back_populates='booking_table_slots',
         lazy='selectin',
     )
+    # Один временной слот может использоваться в нескольких бронях
     slot: Mapped['Slot'] = relationship(
         back_populates='booking_table_slots',
         lazy='selectin',
@@ -167,7 +199,7 @@ class BookingTableSlot(Base):
             'slot_id',
             'booking_date',
             unique=True,
-            postgresql_where=(active == True)
+            postgresql_where=(column('active') == True)  # noqa: E712
         ),
         Index(
             'ix_booking_table_slot_table_date',
