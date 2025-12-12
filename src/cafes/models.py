@@ -45,7 +45,7 @@ class Cafe(Base):
         String(MAX_NAME_LENGTH),
         nullable=False,
     )
-    adress: Mapped[str] = mapped_column(
+    address: Mapped[str] = mapped_column(
         String(MAX_ADDRESS_LENGTH),
         nullable=False,
     )
@@ -57,7 +57,7 @@ class Cafe(Base):
         String(MAX_DESCRIPTION_LENGTH),
         nullable=True,
     )
-    manager_id: Mapped[list[User]] = relationship(
+    manager_ids: Mapped[list[User]] = relationship(
         'User',
         secondary=cafes_managers,
         primaryjoin=id == cafes_managers.c.cafe_id,
