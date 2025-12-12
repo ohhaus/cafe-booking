@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 MAX_NAME_LENGTH = 100
-MAX_ADRESS_LENGTH = 250
+MAX_ADDRESS_LENGTH = 250
 MAX_PHONE_LENGTH = 32
 MAX_DESCRIPTION_LENGTH = 500
 

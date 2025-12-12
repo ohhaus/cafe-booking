@@ -1,7 +1,7 @@
 from typing import Optional
 import uuid
 
-from sqlachemy import ForeignKey, String, Table, and_
+from sqlalchemy import ForeignKey, String, Table, and_, Column
 from sqlalchemy.dialects.postgres import UUID
 from sqlalchemy.orm import (
     Mapped,
@@ -10,7 +10,7 @@ from sqlalchemy.orm import (
 )
 
 from src.config import (
-    MAX_ADRESS_LENGTH,
+    MAX_ADDRESS_LENGTH,
     MAX_DESCRIPTION_LENGTH,
     MAX_NAME_LENGTH,
     MAX_PHONE_LENGTH,
@@ -23,16 +23,16 @@ from src.users.models import User, UserRole
 cafes_managers = Table(
     'cafes_managers',
     Base.metadata,
-    mapped_column(
+    Column(
         'cafe_id',
         UUID(as_uuid=True),
-        ForeignKey('cafe.id', ondelete='CASADE'),
+        ForeignKey('cafe.id', ondelete='CASCADE'),
         primary_key=True,
     ),
-    mapped_column(
+    Column(
         'user_id',
         UUID(as_uuid=True),
-        ForeignKey('user.id', ondelete='CASADE'),
+        ForeignKey('user.id', ondelete='CASCADE'),
         primary_key=True,
     ),
 )
@@ -46,7 +46,7 @@ class Cafe(Base):
         nullable=False,
     )
     adress: Mapped[str] = mapped_column(
-        String(MAX_ADRESS_LENGTH),
+        String(MAX_ADDRESS_LENGTH),
         nullable=False,
     )
     phone: Mapped[str] = mapped_column(
@@ -68,7 +68,7 @@ class Cafe(Base):
         viewonly=True,
         overlaps='managed_cafes, cafes',
     )
-    photo_id: Mapped[Optional[uuid:UUID]] = mapped_column(
+    photo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey('photo.id', ondelete='SET NULL'),
         unique=True,
