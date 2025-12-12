@@ -1,12 +1,11 @@
-from typing import Optional
 
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import select, and_, or_, insert, delete
+from sqlalchemy import delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.crud_base import CRUDBase
 from src.cafes.models import Cafe, cafes_managers
-from src.cafes.schemas import CafeCreate, CafeUpdate, CafeOut
+from src.cafes.schemas import CafeCreate, CafeOut, CafeUpdate
+from src.crud_base import CRUDBase
 
 
 class CRUDCafe(CRUDBase):
@@ -58,8 +57,8 @@ class CRUDCafe(CRUDBase):
         if manager_ids is not None:
             await session.execute(
                 delete(cafes_managers).where(
-                    cafes_managers.c.cafe_id == db_obj.id
-                )
+                    cafes_managers.c.cafe_id == db_obj.id,
+                ),
             )
             if manager_ids:
                 values = [

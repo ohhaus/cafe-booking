@@ -19,11 +19,13 @@ from src.config import (
 #  Валидацию входящих объектов нужно вынести в отдельный модуль.
 class PhoneE164(PhoneNumber):
     """Формат телефонного номера."""
+
     phone_format = 'E164'
 
 
 class CafeBase(BaseModel):
     """Базовая схема кафе."""
+
     name: str = Field(
         ...,
         max_length=MAX_NAME_LENGTH,
@@ -48,6 +50,7 @@ class CafeBase(BaseModel):
 
 class CafeCreate(CafeBase):
     """Схема создания кафе."""
+
     manager_ids: list[uuid.UUID] = Field(
         default_factory=list,
         title='ID менеджеров кафе',
@@ -59,25 +62,26 @@ class CafeCreate(CafeBase):
 
     @field_validator('manager_ids')
     def check_manager_ids_not_empty(
-        cls,
-        values: list[uuid.UUID]
+        self,
+        values: list[uuid.UUID],
     ) -> list[uuid.UUID]:
         """Проверка, что список менеджеров не пустой."""
         if not values:
             raise ValueError(
-                'Необходимо указать хотя бы одного менеджера кафе.'
+                'Необходимо указать хотя бы одного менеджера кафе.',
             )
         return values
 
 
 class CafeUpdate(BaseModel):
-    """
-    Схема обновления кафе.
+    """Схема обновления кафе.
+
     Для поля manager_ids:
-        None -> не изменяет список менеджеров
-        []   -> очищает список менеджеров
-        [..] -> перезаписывает список
+        None -> не изменяет список менеджеров;
+        []   -> очищает список менеджеров;
+        [..] -> перезаписывает список.
     """
+
     name: Optional[str] = Field(
         None,
         max_length=MAX_NAME_LENGTH,
@@ -110,6 +114,7 @@ class CafeUpdate(BaseModel):
 
 class CafeInDBBase(CafeBase):
     """Базовая схема кафе в БД."""
+
     id: uuid.UUID = Field(title='ID кафе')
     photo_id: Optional[uuid.UUID] = Field(
         None,
@@ -122,6 +127,7 @@ class CafeInDBBase(CafeBase):
 
 class CafeOut(CafeInDBBase):
     """Схема кафе для ответа API."""
+
     manager_ids: list[uuid.UUID] = Field(
         default_factory=list,
         title='ID менеджеров кафе',
