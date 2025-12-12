@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import re
 import uuid
 
+from sqlalchemy import Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
     DeclarativeBase,
@@ -35,7 +36,21 @@ class Base(DeclarativeBase):
         onupdate=datetime.now(timezone.utc),
         nullable=False,
     )
+    active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+        index=True,
+    )
 
     @declared_attr.directive
     def __tablename__(cls) -> str:  # noqa
         return resolve_table_name(cls.__name__)
+
+    def soft_delete(self) -> None:
+        """Производит мягкое удаление записей."""
+        self.active = False
+
+    def restore(self) -> None:
+        """Восстанавливает запись после мягкого удаления."""
+        self.active = True
