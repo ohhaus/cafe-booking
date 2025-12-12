@@ -71,7 +71,13 @@ class CafeCreate(CafeBase):
 
 
 class CafeUpdate(BaseModel):
-    """Схема обновления кафе."""
+    """
+    Схема обновления кафе.
+    Для поля manager_ids:
+        None -> не изменяет список менеджеров
+        []   -> очищает список менеджеров
+        [..] -> перезаписывает список
+    """
     name: Optional[str] = Field(
         None,
         max_length=MAX_NAME_LENGTH,
