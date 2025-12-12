@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict
 
@@ -6,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 class BaseRead(BaseModel):
     """Базовая схема для чтения."""
 
-    id: int
+    id: uuid4
     created_at: datetime
     updated_at: datetime
     is_active: bool

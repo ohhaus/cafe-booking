@@ -1,5 +1,8 @@
 from enum import IntEnum
-from typing import List, Optional
+from typing import Optional
+
+from sqlalchemy import CheckConstraint, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from config import (
     MAX_PHONE_LENGTH,
@@ -7,9 +10,6 @@ from config import (
     MAX_TG_LENGTH,
     MAX_USERNAME_LENGTH,
 )
-from sqlalchemy import CheckConstraint, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
 from src.database import Base
 
 
@@ -54,14 +54,14 @@ class User(Base):
         nullable=False,
     )
 
-    cafes: Mapped[List["Cafe"]] = relationship(
+    cafes = relationship(  # : Mapped[List["Cafe"]]
         "Cafe",
         secondary="cafes_managers",
         back_populates="managers",
         lazy="selectin",
         init=False,
     )
-    bookings: Mapped[List["Booking"]] = relationship(
+    bookings = relationship(  # : Mapped[List["Booking"]]
         "Booking",
         back_populates="user",
         lazy="selectin",
