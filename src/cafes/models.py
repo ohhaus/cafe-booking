@@ -1,7 +1,7 @@
 from typing import Optional
 import uuid
 
-from sqlalchemy import ForeignKey, String, Table, and_, Column
+from sqlalchemy import Column, ForeignKey, String, Table, and_
 from sqlalchemy.dialects.postgres import UUID
 from sqlalchemy.orm import (
     Mapped,
@@ -44,14 +44,17 @@ class Cafe(Base):
     name: Mapped[str] = mapped_column(
         String(MAX_NAME_LENGTH),
         nullable=False,
+        unique=True,
     )
     address: Mapped[str] = mapped_column(
         String(MAX_ADDRESS_LENGTH),
         nullable=False,
+        unique=True,
     )
     phone: Mapped[str] = mapped_column(
         String(MAX_PHONE_LENGTH),
         nullable=False,
+        unique=True,
     )
     description: Mapped[Optional[str]] = mapped_column(
         String(MAX_DESCRIPTION_LENGTH),
