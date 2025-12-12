@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from pwdlib import PasswordHash
 
-from config import settings
+from src.config import settings
 
 
 SECRET_KEY = settings.auth.secret_key

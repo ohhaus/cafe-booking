@@ -1,18 +1,18 @@
-from crud import user_crud
-from dependencies import require_roles
 from fastapi import APIRouter, Depends, HTTPException, status
-from models import User, UserRole
-from schemas import UserCreate, UserRead, UserUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
-from validators import (
+
+from src.database.sessions import get_async_session
+from src.services.decorators import log_action
+from src.users.crud import user_crud
+from src.users.dependencies import require_roles
+from src.users.models import User, UserRole
+from src.users.schemas import UserCreate, UserRead, UserUpdate
+from src.users.validators import (
     check_admin_permission,
     check_password,
     check_user_contacts,
     check_user_duplicate,
 )
-
-from database import get_async_session
-from services.decorators import log_action
 
 
 router = APIRouter()

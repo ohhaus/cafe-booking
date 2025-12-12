@@ -6,7 +6,7 @@ from typing import Any
 
 from colorama import Fore, Style, init
 
-from config import COUNT_FILES, MAX_BYTES
+from src.config import COUNT_FILES, MAX_BYTES
 
 
 init(strip=False, autoreset=True)

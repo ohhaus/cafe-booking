@@ -5,7 +5,8 @@ from pydantic import BaseModel
 from sqlalchemy import and_, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import Base, User
+from src.database.base import Base
+from src.users.models import User
 
 
 ModelType = TypeVar('ModelType', bound=Base)

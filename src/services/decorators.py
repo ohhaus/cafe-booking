@@ -2,14 +2,14 @@ import functools
 import inspect
 from typing import Any, Callable
 
-from logger.logger import logger
-from users.models import UserRole
+from src.logger.logger import logger
 
 
 def _extract_user(kwargs: dict[str, Any]) -> str:
     """Извлекает и форматирует пользователя из kwargs."""
     user_obj = kwargs.get('current_user')
     if user_obj and hasattr(user_obj, 'username') and hasattr(user_obj, 'id'):
+        from src.users.models import UserRole
         role_str = (
             UserRole(user_obj.role).name
             if user_obj.role is not None

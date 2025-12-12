@@ -1,13 +1,13 @@
 from typing import Any
 
 from fastapi.encoders import jsonable_encoder
-from models import User, UserRole
-from schemas import UserCreate, UserUpdate
-from security import get_password_hash
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from crud_base import CRUDBase
+from src.crud_base import CRUDBase
+from src.users.models import User, UserRole
+from src.users.schemas import UserCreate, UserUpdate
+from src.users.security import get_password_hash
 
 
 class UserService(CRUDBase):

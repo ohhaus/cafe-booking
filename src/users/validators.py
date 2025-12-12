@@ -1,9 +1,10 @@
-from crud import user_crud
 from fastapi import HTTPException, status
-from models import User, UserRole
-from schemas import UserCreate, UserUpdate
-from security import verify_password
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.users.crud import user_crud
+from src.users.models import User, UserRole
+from src.users.schemas import UserCreate, UserUpdate
+from src.users.security import verify_password
 
 
 async def check_user_duplicate(

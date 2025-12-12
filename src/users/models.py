@@ -4,13 +4,13 @@ from typing import Optional
 from sqlalchemy import CheckConstraint, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from config import (
+from src.config import (
     MAX_PHONE_LENGTH,
     MAX_STRING_LENGTH,
     MAX_TG_LENGTH,
     MAX_USERNAME_LENGTH,
 )
-from src.database import Base
+from src.database.base import Base
 
 
 class UserRole(IntEnum):
@@ -59,13 +59,11 @@ class User(Base):
         secondary="cafes_managers",
         back_populates="managers",
         lazy="selectin",
-        init=False,
     )
     bookings = relationship(  # : Mapped[List["Booking"]]
         "Booking",
         back_populates="user",
         lazy="selectin",
-        init=False,
     )
 
     __table_args__ = (
