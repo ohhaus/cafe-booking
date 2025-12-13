@@ -41,7 +41,7 @@ class Dish(Base):
         String(MAX_DESCRIPTION_LENGTH),
         nullable=True,
     )
-    # todo: добавить связь с фото/медиа в будущем
+    # todo: добавить связь с фото/медиа
     photo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         nullable=True,
