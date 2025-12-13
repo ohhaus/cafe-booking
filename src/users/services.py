@@ -4,13 +4,13 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.crud_base import CRUDBase
+from src.database import DatabaseService
 from src.users.models import User, UserRole
 from src.users.schemas import UserCreate, UserUpdate
 from src.users.security import get_password_hash
 
 
-class UserService(CRUDBase):
+class UserService(DatabaseService[User, UserCreate, UserUpdate]):
     """CRUD для модели User."""
 
     async def create(

@@ -12,7 +12,7 @@ from pydantic import (
 from pydantic_extra_types.phone_numbers import PhoneNumber
 from python_usernames import is_safe_username
 
-from src.base_schemas import BaseRead
+from src.common import BaseRead
 from src.config import (
     MAX_PASSWORD_LENGTH,
     MAX_USERNAME_LENGTH,
