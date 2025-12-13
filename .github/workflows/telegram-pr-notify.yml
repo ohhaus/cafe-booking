@@ -49,6 +49,7 @@ jobs:
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
+      # -------------------------
       - name: Detect review state change
         id: review
         if: github.event_name == 'pull_request_review'
@@ -78,8 +79,7 @@ jobs:
           send_now="false"
 
           if [[ "${{ github.event.action }}" == "opened" ]]; then
-            # Немедленное уведомление
-            msg="🚀 *Новый PR*\n\n📌 #$pr: $title\n👤 Автор: $author\n\n👉 $url"
+            msg=$(echo -e "🚀 *Новый PR*\n\n📌 #$pr: $title\n👤 Автор: $author\n\n👉 $url")
             send_now="true"
 
           elif [[ "${{ github.event.action }}" == "closed" ]]; then
@@ -95,24 +95,16 @@ jobs:
 
             DURATION=$(( ($(date +%s) - $(date -d "${{ github.event.pull_request.created_at }}" +%s)) / 86400 ))
 
-            msg="$EMOJI PR $TEXT
-
-            📌 #$pr: $title
-            👤 Автор: $author
-            $MERGER
-            ⏱️ Продолжительность: ${DURATION} дн.
-
-            Посмотреть PR | $url"
+            msg=$(echo -e "$EMOJI PR $TEXT\n\n📌 #$pr: $title\n👤 Автор: $author\n$MERGER\n⏱️ Продолжительность: ${DURATION} дн.\n\nПосмотреть PR | $url")
             send_now="true"
 
           elif [[ "${{ github.event.action }}" == "synchronize" ]]; then
-            # Throttled событие
-            body="📝 *Новые коммиты в PR #$pr*\n\n📌 $title\n👤 Автор: $author\n➕ Новых коммитов: ${{ steps.commits.outputs.count }}\n\n$(echo "${{ steps.commits.outputs.list }}" | sed 's/^/• /')\n\n👉 $url"
+            body=$(echo -e "📝 *Новые коммиты в PR #$pr*\n\n📌 $title\n👤 Автор: $author\n➕ Новых коммитов: ${{ steps.commits.outputs.count }}\n\n$(echo "${{ steps.commits.outputs.list }}" | sed 's/^/• /')\n\n👉 $url")
             mkdir -p .throttle
             echo "$body" >> .throttle/events.log
 
           elif [[ "${{ github.event_name }}" == "pull_request_review" && "${{ steps.review.outputs.changed }}" == "true" ]]; then
-            body="🔄 *Изменение статуса review*\n\n📌 #$pr: $title\n👤 Ревьювер: ${{ github.event.review.user.login }}\n🔁 ${{ steps.review.outputs.from }} → ${{ steps.review.outputs.to }}\n\n👉 $url"
+            body=$(echo -e "🔄 *Изменение статуса review*\n\n📌 #$pr: $title\n👤 Ревьювер: ${{ github.event.review.user.login }}\n🔁 ${{ steps.review.outputs.from }} → ${{ steps.review.outputs.to }}\n\n👉 $url")
             mkdir -p .throttle
             echo "$body" >> .throttle/events.log
           fi
