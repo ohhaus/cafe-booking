@@ -1,4 +1,5 @@
-from typing import Optional
+from __future__ import annotations
+from typing import Optional, TYPE_CHECKING
 import uuid
 
 from sqlalchemy import Column, ForeignKey, String, Table, and_
@@ -17,8 +18,10 @@ from src.config import (
 )
 from src.database import Base
 from src.photos.models import Photo
-from src.slots.models import Slot
 from src.users.models import User, UserRole
+
+if TYPE_CHECKING:
+    from src.slots.models import Slot
 
 
 cafes_managers = Table(
@@ -84,7 +87,7 @@ class Cafe(Base):
         uselist=False,
     )
 
-    slots: Mapped[list[Slot]] = relationship(
+    slots: Mapped[list['Slot']] = relationship(
         'Slot',
         back_populates='cafe',
         cascade='all, delete-orphan',
