@@ -17,6 +17,7 @@ from src.config import (
 )
 from src.database import Base
 from src.photos.models import Photo
+from src.slots.models import Slot
 from src.users.models import User, UserRole
 
 
@@ -81,4 +82,10 @@ class Cafe(Base):
     photo: Mapped[Optional[Photo]] = relationship(
         back_populates='cafe',
         uselist=False,
+    )
+
+    slots: Mapped[list[Slot]] = relationship(
+        'Slot',
+        back_populates='cafe',
+        cascade='all, delete-orphan',
     )
