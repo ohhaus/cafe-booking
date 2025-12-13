@@ -19,6 +19,8 @@ from src.config import (
 )
 from src.database import Base
 from src.users.models import User, UserRole
+
+
 # from src.photos.models import Photo
 
 
