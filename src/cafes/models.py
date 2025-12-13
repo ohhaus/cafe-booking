@@ -22,6 +22,7 @@ from src.users.models import User, UserRole
 
 if TYPE_CHECKING:
     from src.slots.models import Slot
+    from src.tables.models import CafeTable
 
 
 cafes_managers = Table(
@@ -89,6 +90,11 @@ class Cafe(Base):
 
     slots: Mapped[list['Slot']] = relationship(
         'Slot',
+        back_populates='cafe',
+        cascade='all, delete-orphan',
+    )
+    tables: Mapped[list['CafeTable']] = relationship(
+        'CafeTable',
         back_populates='cafe',
         cascade='all, delete-orphan',
     )
