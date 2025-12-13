@@ -3,7 +3,7 @@ from typing import Awaitable, Callable
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
-# from pyJWT.exceptions import InvalidTokenError
+from pyJWT.exceptions import InvalidTokenError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
