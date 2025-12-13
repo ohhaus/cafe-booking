@@ -28,12 +28,12 @@ class Base(DeclarativeBase):
         index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
-        default=datetime.now(timezone.utc),
+        default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
     updated_at: Mapped[datetime] = mapped_column(
-        default=datetime.now(timezone.utc),
-        onupdate=datetime.now(timezone.utc),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
     active: Mapped[bool] = mapped_column(

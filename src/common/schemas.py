@@ -1,14 +1,18 @@
 from datetime import datetime
-from uuid import uuid4
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
 
 class BaseRead(BaseModel):
-    """Базовая схема для чтения."""
+    """Базовая схема для чтения объектов.
 
-    id: uuid4
+    Содержит общие поля, которые есть у всех моделей.
+    """
+
+    id: UUID
     created_at: datetime
     updated_at: datetime
     is_active: bool
+
     model_config = ConfigDict(from_attributes=True)

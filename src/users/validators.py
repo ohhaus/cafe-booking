@@ -1,10 +1,10 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.users.crud import user_crud
 from src.users.models import User, UserRole
 from src.users.schemas import UserCreate, UserUpdate
 from src.users.security import verify_password
+from src.users.services import user_crud
 
 
 async def check_user_duplicate(
