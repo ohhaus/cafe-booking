@@ -16,6 +16,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.booking.constants import BookingStatus, MAX_NOTES_LENGTH
 from src.cafes.models import Cafe
 from src.database import Base
+from src.slots.models import Slot
+from src.tables.models import Table
 from src.users.models import User
 
 
