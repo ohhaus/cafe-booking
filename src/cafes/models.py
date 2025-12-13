@@ -4,7 +4,7 @@ from typing import Optional, TYPE_CHECKING
 
 # import uuid
 from sqlalchemy import Column, ForeignKey, String, Table as SATable, and_
-from sqlalchemy.dialects.postgres import UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,

@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 import uuid
 
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, String
-from sqlalchemy.dialects.postgres import UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
