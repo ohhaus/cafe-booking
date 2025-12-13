@@ -1,6 +1,6 @@
 from typing import Optional
-import uuid
 
+# import uuid
 from sqlalchemy import Column, ForeignKey, String, Table, and_
 from sqlalchemy.dialects.postgres import UUID
 from sqlalchemy.orm import (
@@ -16,7 +16,6 @@ from src.config import (
     MAX_PHONE_LENGTH,
 )
 from src.database import Base
-from src.photos.models import Photo
 from src.users.models import User, UserRole
 
 
@@ -71,14 +70,9 @@ class Cafe(Base):
         viewonly=True,
         overlaps='managed_cafes, cafes',
     )
-    photo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey('photo.id', ondelete='SET NULL'),
+    # todo: добавить связь с фото/медиа в будущем
+    photo_id: Mapped[str] = mapped_column(
+        String(MAX_NAME_LENGTH),
+        nullable=False,
         unique=True,
-        nullable=True,
-    )
-
-    photo: Mapped[Optional[Photo]] = relationship(
-        back_populates='cafe',
-        uselist=False,
     )
