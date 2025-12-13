@@ -11,7 +11,7 @@ from src.database import Base
 
 
 # Промежуточная таблица для связи между блюдами и кафе
-dishes_cafes = Table(
+dish_cafe = Table(
     'dishes_cafes',
     Base.metadata,
     Column(
