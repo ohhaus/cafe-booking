@@ -1,4 +1,5 @@
 from datetime import date
+from typing import List
 import uuid
 
 from sqlalchemy import (
@@ -7,7 +8,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     String,
-    UniqueConstraint,
     column,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -31,8 +31,8 @@ class Booking(Base):
     Relationships:
     user (User): Связь с пользователем. Обратная — `User.bookings`.
     cafe (Cafe): Связь с кафе. Обратная — `Cafe.bookings`.
-    booking_table_slot (BookingTableSlot):
-        Связь один-к-одному. Обратная — `BookingTableSlot.booking`.
+    booking_table_slots (BookingTableSlot):
+        Связь один-ко-многим. Обратная — `BookingTableSlot.booking`.
         Позволяет получить забронированный стол и временной слот.
 
     Constraints:
@@ -60,7 +60,7 @@ class Booking(Base):
     booking_date: Mapped[date] = mapped_column(
         Date,
         comment='Дата брони',
-        default=lambda: date.today(),  # дата в формате 'YYYY-MM-DD'
+        default=lambda: date.today(),
         nullable=False,
     )
     note: Mapped[str] = mapped_column(
@@ -73,7 +73,7 @@ class Booking(Base):
         Enum(BookingStatus, name='booking_status', native_enum=True),
         comment='Статус брони',
         nullable=False,
-        default=BookingStatus.CREATED,
+        default=BookingStatus.BOOKING,
     )
     # --- связи ---
     # Один пользователь -> много бронирований
@@ -88,10 +88,10 @@ class Booking(Base):
         lazy='selectin',
     )
 
-    # Одна бронь -> один BookingTableSlot (one-to-one)
-    booking_table_slot: Mapped['BookingTableSlot'] = relationship(
+    # Одна бронь --> много столов и слотов
+    booking_table_slots: Mapped[List['BookingTableSlot']] = relationship(
         back_populates='booking',
-        uselist=False,
+        uselist=True,
         lazy='selectin',
         cascade='all',
     )
@@ -101,29 +101,35 @@ class Booking(Base):
         Index('ix_booking_cafe_date', cafe_id, booking_date),
     )
 
+    def create_booking(self) -> None:
+        """Создает бронирование."""
+        for bts in self.booking_table_slots:
+            bts.restore()
+        self.status = BookingStatus.BOOKING
+
     def activate_booking(self) -> None:
         """Активирует бронирование."""
-        if self.booking_table_slot:
-            self.booking_table_slot.restore()
+        for bts in self.booking_table_slots:
+            bts.restore()
         self.status = BookingStatus.ACTIVE
 
     def complete_booking(self) -> None:
         """Завершает бронирование."""
-        if self.booking_table_slot:
-            self.booking_table_slot.restore()
+        for bts in self.booking_table_slots:
+            bts.restore()
         self.status = BookingStatus.COMPLETED
 
     def cancel_booking(self) -> None:
         """Отменяет бронирование."""
-        if self.booking_table_slot:
-            self.booking_table_slot.soft_delete()
+        for bts in self.booking_table_slots:
+            bts.soft_delete()
         self.status = BookingStatus.CANCELED
 
     def restore_booking(self) -> None:
         """Восстанавливает отменённое бронирование."""
-        if self.booking_table_slot:
-            self.booking_table_slot.restore()
-        self.status = BookingStatus.CREATED
+        for bts in self.booking_table_slots:
+            bts.restore()
+        self.status = BookingStatus.BOOKING
 
 
 class BookingTableSlot(Base):
@@ -139,7 +145,6 @@ class BookingTableSlot(Base):
         slot (Slot): Обратная связь с временным слотом.
 
     Constraints:
-        - Уникальный `booking_id` (одна бронь — одна запись).
         - Уникальная комбинация `table_id`, `slot_id`, `booking_date` —
           предотвращает двойное бронирование одного стола в один и тот же слот
           и день для активной брони.
@@ -171,9 +176,9 @@ class BookingTableSlot(Base):
     )
 
     # --- связи ---
-    # Один к одному: одно бронирование --> одна запись BookingTableSlot
+    # Один к многим: одно бронирование --> много столов и слотов
     booking: Mapped['Booking'] = relationship(
-        back_populates='booking_table_slot',
+        back_populates='booking_table_slots',
         lazy='selectin',
     )
     # Один стол может быть забронирован несколько раз
@@ -188,10 +193,6 @@ class BookingTableSlot(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint(
-            'booking_id',
-            name='unique_booking',
-        ),
         Index(
             'uq_table_slot_booking_date_when_active',
             'table_id',
