@@ -7,7 +7,7 @@ from sqlalchemy import (
     ForeignKey,
     Time,
 )
-from sqlalchemy.dialects.postgres import UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
