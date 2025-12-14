@@ -1,19 +1,12 @@
-from datetime import date
 import uuid
+from datetime import date
 
-from sqlalchemy import (
-    Date,
-    Enum,
-    ForeignKey,
-    Index,
-    String,
-    UniqueConstraint,
-    column,
-)
+from sqlalchemy import (Date, Enum, ForeignKey, Index, String,
+                        UniqueConstraint, column)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.booking.constants import BookingStatus, MAX_NOTES_LENGTH
+from src.booking.constants import MAX_NOTES_LENGTH, BookingStatus
 from src.cafes.models import Cafe
 from src.database import Base
 from src.slots.models import Slot

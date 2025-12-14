@@ -1,8 +1,8 @@
 from typing import Awaitable, Callable
 
+import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-import jwt
 from jwt.exceptions import InvalidTokenError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -11,7 +11,6 @@ from src.common.logging import log_action
 from src.config import settings
 from src.database.sessions import get_async_session
 from src.users.models import User, UserRole
-
 
 bearer_scheme = HTTPBearer(auto_error=False)
 

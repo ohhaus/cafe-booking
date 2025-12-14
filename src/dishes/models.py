@@ -1,6 +1,6 @@
+import uuid
 from decimal import Decimal
 from typing import Optional
-import uuid
 
 from sqlalchemy import Column, ForeignKey, Numeric, String, Table
 from sqlalchemy.dialects.postgresql import UUID
@@ -8,7 +8,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from src.config import MAX_DESCRIPTION_LENGTH, MAX_NAME_LENGTH
 from src.database import Base
-
 
 # Промежуточная таблица для связи между блюдами и кафе
 dish_cafe = Table(

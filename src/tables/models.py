@@ -1,18 +1,13 @@
-from typing import TYPE_CHECKING
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgres import UUID
-from sqlalchemy.orm import (
-    Mapped,
-    mapped_column,
-    relationship,
-)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.cafes.models import Cafe
 from src.config import MAX_DESCRIPTION_LENGTH
 from src.database import Base
-
 
 if TYPE_CHECKING:
     from src.booking.models import BookingTableSlot

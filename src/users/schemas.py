@@ -1,25 +1,15 @@
 import re
 from typing import Annotated, Self
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    EmailStr,
-    Field,
-    PlainValidator,
-    model_validator,
-)
+from pydantic import (BaseModel, ConfigDict, EmailStr, Field, PlainValidator,
+                      model_validator)
 from pydantic_extra_types.phone_numbers import PhoneNumber
 from python_usernames import is_safe_username
 
 from src.common import BaseRead
-from src.config import (
-    MAX_PASSWORD_LENGTH,
-    MAX_USERNAME_LENGTH,
-    MIN_PASSWORD_LENGTH,
-    MIN_TG_LENGTH,
-    MIN_USERNAME_LENGTH,
-)
+from src.config import (MAX_PASSWORD_LENGTH, MAX_USERNAME_LENGTH,
+                        MIN_PASSWORD_LENGTH, MIN_TG_LENGTH,
+                        MIN_USERNAME_LENGTH)
 from src.users.models import UserRole
 
 

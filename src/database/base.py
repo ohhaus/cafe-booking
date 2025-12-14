@@ -1,15 +1,11 @@
-from datetime import datetime, timezone
 import re
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import Boolean
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import (
-    DeclarativeBase,
-    Mapped,
-    declared_attr,
-    mapped_column,
-)
+from sqlalchemy.orm import (DeclarativeBase, Mapped, declared_attr,
+                            mapped_column)
 
 
 def resolve_table_name(class_name: str) -> str:

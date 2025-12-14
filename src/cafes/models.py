@@ -1,25 +1,18 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 # import uuid
-from sqlalchemy import Column, ForeignKey, String, Table as SATable, and_
+from sqlalchemy import Column, ForeignKey, String
+from sqlalchemy import Table as SATable
+from sqlalchemy import and_
 from sqlalchemy.dialects.postgres import UUID
-from sqlalchemy.orm import (
-    Mapped,
-    mapped_column,
-    relationship,
-)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.config import (
-    MAX_ADDRESS_LENGTH,
-    MAX_DESCRIPTION_LENGTH,
-    MAX_NAME_LENGTH,
-    MAX_PHONE_LENGTH,
-)
+from src.config import (MAX_ADDRESS_LENGTH, MAX_DESCRIPTION_LENGTH,
+                        MAX_NAME_LENGTH, MAX_PHONE_LENGTH)
 from src.database import Base
 from src.users.models import User, UserRole
-
 
 # from src.photos.models import Photo
 

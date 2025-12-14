@@ -7,13 +7,8 @@ from src.users.dependencies import require_roles
 from src.users.models import User, UserRole
 from src.users.schemas import UserCreate, UserRead, UserUpdate
 from src.users.services import user_crud
-from src.users.validators import (
-    check_admin_permission,
-    check_password,
-    check_user_contacts,
-    check_user_duplicate,
-)
-
+from src.users.validators import (check_admin_permission, check_password,
+                                  check_user_contacts, check_user_duplicate)
 
 router = APIRouter()
 

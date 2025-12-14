@@ -1,22 +1,13 @@
+import uuid
 from datetime import time
 from typing import TYPE_CHECKING
-import uuid
 
-from sqlalchemy import (
-    CheckConstraint,
-    ForeignKey,
-    Time,
-)
+from sqlalchemy import CheckConstraint, ForeignKey, Time
 from sqlalchemy.dialects.postgres import UUID
-from sqlalchemy.orm import (
-    Mapped,
-    mapped_column,
-    relationship,
-)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.cafes.models import Cafe
 from src.database import Base
-
 
 if TYPE_CHECKING:
     from src.booking.models import BookingTableSlot
