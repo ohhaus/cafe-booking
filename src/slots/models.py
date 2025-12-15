@@ -1,10 +1,11 @@
 from datetime import time
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 import uuid
 
 from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
+    String,
     Time,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -15,6 +16,7 @@ from sqlalchemy.orm import (
 )
 
 from src.cafes.models import Cafe
+from src.config import MAX_DESCRIPTION_LENGTH
 from src.database import Base
 
 
@@ -57,6 +59,10 @@ class Slot(Base):
     end_time: Mapped[time] = mapped_column(
         Time(timezone=False),
         nullable=False,
+    )
+    description: Mapped[Optional[str]] = mapped_column(
+        String(MAX_DESCRIPTION_LENGTH),
+        nullable=True,
     )
 
     cafe: Mapped['Cafe'] = relationship(

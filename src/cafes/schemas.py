@@ -105,7 +105,7 @@ class CafeUpdate(BaseModel):
             'phone',
             'photo_id',
             'managers_id',
-            'is_active',
+            'active',
         ):
             if field in self.model_fields_set and getattr(self, field) is None:
                 raise ValueError(f'Поле {field} не может быть null')

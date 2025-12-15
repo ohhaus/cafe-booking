@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 import uuid
 
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, String
@@ -48,7 +48,7 @@ class Table(Base):
         Integer(),
         nullable=False,
     )
-    description: Mapped[str] = mapped_column(
+    description: Mapped[Optional[str]] = mapped_column(
         String(MAX_DESCRIPTION_LENGTH),
         nullable=True,
     )

@@ -78,7 +78,7 @@ async def create_cafe(
         description=data.description,
         photo_id=data.photo_id,
     )
-
+    await db.add(cafe)
     await db.flush()
 
     if data.managers_id:

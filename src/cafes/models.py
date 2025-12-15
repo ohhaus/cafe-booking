@@ -3,7 +3,15 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
 # import uuid
-from sqlalchemy import Column, ForeignKey, String, Table as SATable, and_
+from sqlalchemy import (
+    Column,
+    ForeignKey,
+    Index,
+    String,
+    Table as SATable,
+    UniqueConstraint,
+    and_,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
     Mapped,
@@ -25,10 +33,7 @@ from src.users.models import User, UserRole
 
 
 if TYPE_CHECKING:
-    from src.booking.models import Booking
-    from src.dishes.models import Dish
-    from src.slots.models import Slot
-    from src.tables.models import Table
+    pass
 
 #  Ассоциативная таблица для связи "многие к многим" моделей User и Cafe.
 cafes_managers = SATable(
@@ -37,13 +42,13 @@ cafes_managers = SATable(
     Column(
         'cafe_id',
         UUID(as_uuid=True),
-        ForeignKey('cafe.id', ondelete='CASCADE'),
+        ForeignKey('cafe.id'),
         primary_key=True,
     ),
     Column(
         'user_id',
         UUID(as_uuid=True),
-        ForeignKey('user.id', ondelete='CASCADE'),
+        ForeignKey('user.id'),
         primary_key=True,
     ),
 )
@@ -84,12 +89,10 @@ class Cafe(Base):
     name: Mapped[str] = mapped_column(
         String(MAX_NAME_LENGTH),
         nullable=False,
-        unique=True,
     )
     address: Mapped[str] = mapped_column(
         String(MAX_ADDRESS_LENGTH),
         nullable=False,
-        unique=True,
     )
     phone: Mapped[str] = mapped_column(
         String(MAX_PHONE_LENGTH),
@@ -123,23 +126,7 @@ class Cafe(Base):
     #     uselist=False,
     # )
 
-    slots: Mapped[list['Slot']] = relationship(
-        'Slot',
-        back_populates='cafe',
-        cascade='all, delete-orphan',
-    )
-    tables: Mapped[list['Table']] = relationship(
-        'Table',
-        back_populates='cafe',
-        cascade='all, delete-orphan',
-    )
-    bookings: Mapped[list['Booking']] = relationship(
-        'Booking',
-        back_populates='cafe',
-        cascade='all, delete-orphan',
-    )
-    dishes: Mapped[list['Dish']] = relationship(
-        'Dish',
-        back_populates='cafes',
-        secondary='dishes_cafes',
+    __table_args__ = (
+        UniqueConstraint('name', 'address', name='uq_cafe_name_address'),
+        Index('idx_cafe_name', 'name'),
     )
