@@ -3,7 +3,6 @@ from typing import Awaitable, Callable
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
-from jwt.exceptions import InvalidTokenError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -57,7 +56,7 @@ def require_roles(
             user_id: int | None = payload.get('sub')
             if not user_id:
                 raise credentials_exception
-        except InvalidTokenError:
+        except jwt.PyJWTError:
             raise credentials_exception
 
         result = await session.execute(
