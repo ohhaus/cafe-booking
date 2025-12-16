@@ -46,10 +46,9 @@ class TimeSlotCreate(TimeSlotBase):
 
 
 class TimeSlotInfo(TimeSlotBase):
-    """Полная информация о слоте (TimeSlotInfo)."""
+    """Полная информация о слоте."""
 
     id: UUID
-    cafe: CafeShortInfo
     is_active: bool = Field(
         # Стыкаовка с моделью, в модели поле называется active
         validation_alias='active',
@@ -61,8 +60,14 @@ class TimeSlotInfo(TimeSlotBase):
     model_config = ConfigDict(from_attributes=True, extra='forbid')
 
 
+class TimeSlotWithCafeInfo(TimeSlotInfo):
+    """Информация о слоте с кафе."""
+
+    cafe: CafeShortInfo
+
+
 class TimeSlotShortInfo(BaseModel):
-    """Короткая информация о слоте (TimeSlotShortInfo)."""
+    """Короткая информация о слоте."""
 
     id: UUID
     start_time: time = Field(
@@ -83,7 +88,7 @@ class TimeSlotShortInfo(BaseModel):
 
 
 class TimeSlotUpdate(BaseModel):
-    """Схема для обновления слота (TimeSlotUpdate)."""
+    """Схема для обновления слота."""
 
     start_time: Optional[time] = None
     end_time: Optional[time] = None

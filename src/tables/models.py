@@ -6,16 +6,14 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
-    relationship,
 )
 
-from src.cafes.models import Cafe
 from src.config import MAX_DESCRIPTION_LENGTH
 from src.database import Base
 
 
 if TYPE_CHECKING:
-    from src.booking.models import BookingTableSlot
+    pass
 
 
 class Table(Base):
@@ -41,7 +39,7 @@ class Table(Base):
 
     cafe_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey('cafe.id', ondelete='CASCADE'),
+        ForeignKey('cafe.id'),
         nullable=False,
     )
     count_place: Mapped[int] = mapped_column(
@@ -51,15 +49,6 @@ class Table(Base):
     description: Mapped[Optional[str]] = mapped_column(
         String(MAX_DESCRIPTION_LENGTH),
         nullable=True,
-    )
-
-    cafe: Mapped['Cafe'] = relationship(
-        back_populates='tables',
-    )
-    booking_table_slots: Mapped[list['BookingTableSlot']] = relationship(
-        'BookingTableSlot',
-        back_populates='table',
-        cascade='all, delete-orphan',
     )
 
     __table_args__ = (

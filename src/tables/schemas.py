@@ -31,16 +31,15 @@ class TableBase(BaseModel):
 
 
 class TableCreate(TableBase):
-    """Схема создания стола (TableCreate)."""
+    """Схема создания стола."""
 
     ...
 
 
 class TableInfo(TableBase):
-    """Полная информация о столе (TableInfo)."""
+    """Полная информация о столе."""
 
     id: UUID
-    cafe: CafeShortInfo
     is_active: bool = Field(
         # Стыкаовка с моделью, в модели поле называется active
         validation_alias='active',
@@ -52,8 +51,14 @@ class TableInfo(TableBase):
     model_config = ConfigDict(from_attributes=True, extra='forbid')
 
 
+class TableWithCafeInfo(TableInfo):
+    """Полная информация о столе с кафе."""
+
+    cafe: CafeShortInfo
+
+
 class TableShortInfo(TableBase):
-    """Короткая информация о столе (TableShortInfo)."""
+    """Короткая информация о столе."""
 
     id: UUID
 
@@ -61,7 +66,7 @@ class TableShortInfo(TableBase):
 
 
 class TableUpdate(BaseModel):
-    """Схема для обновления стола (TableUpdate)."""
+    """Схема для обновления стола."""
 
     description: Optional[str] = Field(
         default=None,
