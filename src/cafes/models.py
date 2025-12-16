@@ -1,8 +1,10 @@
-from typing import Optional
+from __future__ import annotations
+
+from typing import Optional, TYPE_CHECKING
 
 # import uuid
-from sqlalchemy import Column, ForeignKey, String, Table, and_
-from sqlalchemy.dialects.postgres import UUID
+from sqlalchemy import Column, ForeignKey, String, Table as SATable, and_
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
@@ -19,7 +21,17 @@ from src.database import Base
 from src.users.models import User, UserRole
 
 
-cafes_managers = Table(
+# from src.photos.models import Photo
+
+
+if TYPE_CHECKING:
+    from src.booking.models import Booking
+    from src.dishes.models import Dish
+    from src.slots.models import Slot
+    from src.tables.models import Table
+
+#  Ассоциативная таблица для связи "многие к многим" моделей User и Cafe.
+cafes_managers = SATable(
     'cafes_managers',
     Base.metadata,
     Column(
@@ -38,7 +50,36 @@ cafes_managers = Table(
 
 
 class Cafe(Base):
-    """Модель кафе."""
+    """Модель кафе.
+
+    Relationships:
+        managers: Связь многие-ко-многим с пользователями (User) через
+            промежуточную таблицу cafes_managers. В выборку попадают только
+            пользователи с ролью MANAGER. Связь доступна только для чтения
+            (viewonly=True).
+        slots: Связь один-ко-многим со слотами бронирования (Slot).
+            Каждый слот относится к одному кафе. При удалении кафе все
+            связанные слоты удаляются (cascade='all, delete-orphan' на стороне
+            Cafe, ondelete='CASCADE' на стороне Slot).
+        tables: Связь один-ко-многим со столами (Table).
+            Каждый стол относится к одному кафе. При удалении кафе все
+            связанные столы удаляются (cascade='all, delete-orphan' на стороне
+            Cafe, ondelete='CASCADE' на стороне Table).
+        bookings: Связь один-ко-многим с бронированиями (Booking).
+            Одно кафе может иметь множество бронирований. При удалении кафе
+            все связанные брони удаляются (cascade='all, delete-orphan' на
+            стороне Cafe, ondelete='CASCADE' на стороне Booking).
+        dishes: Связь многие-ко-многим с блюдами (Dish) через
+            промежуточную таблицу dishes_cafes. Позволяет получить все блюда,
+            доступные в данном кафе.
+
+    Ограничения:
+        - Уникальность полей name, address и phone на уровне БД.
+        - Внешние ключи с ondelete='CASCADE' для cafes_managers.cafe_id,
+          slots.cafe_id и tables.cafe_id, обеспечивающие каскадное удаление
+          связанных записей при удалении кафе.
+
+    """
 
     name: Mapped[str] = mapped_column(
         String(MAX_NAME_LENGTH),
@@ -70,9 +111,35 @@ class Cafe(Base):
         viewonly=True,
         overlaps='managed_cafes, cafes',
     )
-    # todo: добавить связь с фото/медиа в будущем
-    photo_id: Mapped[str] = mapped_column(
-        String(MAX_NAME_LENGTH),
-        nullable=False,
-        unique=True,
+    # photo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    #     UUID(as_uuid=True),
+    #     ForeignKey('photo.id', ondelete='SET NULL'),
+    #     unique=True,
+    #     nullable=True,
+    # )
+
+    # photo: Mapped[Optional[Photo]] = relationship(
+    #     back_populates='cafe',
+    #     uselist=False,
+    # )
+
+    slots: Mapped[list['Slot']] = relationship(
+        'Slot',
+        back_populates='cafe',
+        cascade='all, delete-orphan',
+    )
+    tables: Mapped[list['Table']] = relationship(
+        'Table',
+        back_populates='cafe',
+        cascade='all, delete-orphan',
+    )
+    bookings: Mapped[list['Booking']] = relationship(
+        'Booking',
+        back_populates='cafe',
+        cascade='all, delete-orphan',
+    )
+    dishes: Mapped[list['Dish']] = relationship(
+        'Dish',
+        back_populates='cafes',
+        secondary='dishes_cafes',
     )
