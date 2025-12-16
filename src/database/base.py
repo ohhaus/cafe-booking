@@ -2,7 +2,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean
+from sqlalchemy import Boolean, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (DeclarativeBase, Mapped, declared_attr,
                             mapped_column)
@@ -21,16 +21,17 @@ class Base(DeclarativeBase):
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
-        index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
+        server_default=text("TIMEZONE('utc', now())"),
     )
     updated_at: Mapped[datetime] = mapped_column(
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
+        server_default=text("TIMEZONE('utc', now())"),
     )
     active: Mapped[bool] = mapped_column(
         Boolean,
