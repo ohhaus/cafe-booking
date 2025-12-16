@@ -1,5 +1,6 @@
 from enum import IntEnum
 
+
 MAX_NOTES_LENGTH = 255
 
 

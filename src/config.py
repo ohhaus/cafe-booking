@@ -1,8 +1,9 @@
-import secrets
 from pathlib import Path
+import secrets
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 MAX_NAME_LENGTH = 100

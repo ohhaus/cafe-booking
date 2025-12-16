@@ -1,7 +1,5 @@
 import uuid
-from collections.abc import Sequence
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media.models import Image
@@ -38,21 +36,3 @@ async def get_image(session: AsyncSession,
                     image_id: uuid.UUID) -> Image | None:
     """Возвращает изображение по ID или None, если не найдено."""
     return await session.get(Image, image_id)
-
-
-async def list_images(
-    session: AsyncSession,
-    skip: int = 0,
-    limit: int = 50,
-) -> list[Image]:
-    """Возвращает список изображений с пагинацией."""
-    stmt = select(Image).offset(skip).limit(limit)
-    res = await session.execute(stmt)
-    images: Sequence[Image] = res.scalars().all()
-    return list(images)
-
-
-async def soft_delete_image(db: AsyncSession, image: Image) -> None:
-    """Мягко удаляет изображение (active = False)."""
-    image.active = False
-    await db.commit()

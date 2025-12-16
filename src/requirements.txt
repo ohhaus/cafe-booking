@@ -36,6 +36,7 @@ MarkupSafe==3.0.3
 nodeenv==1.9.1
 packaging==25.0
 phonenumbers==9.0.20
+Pillow==12.0.0
 platformdirs==4.5.1
 pluggy==1.6.0
 pre_commit==4.5.0

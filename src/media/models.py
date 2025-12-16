@@ -4,7 +4,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from ..database.base import Base
 
 
-class Image(Base):
+class ImageMedia(Base):
     """Модуль для хранения информации об изображении."""
 
     filename = Column(String(255), nullable=False, unique=True)
@@ -15,10 +15,8 @@ class Image(Base):
     uploaded_by_id = Column(
         UUID(as_uuid=True),
         ForeignKey('users.id'),
-        nullable=False
+        nullable=False,
     )
-    width = Column(Integer, nullable=True)
-    height = Column(Integer, nullable=True)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<Image(id={self.id}, filename={self.filename})'

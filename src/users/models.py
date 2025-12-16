@@ -4,8 +4,12 @@ from typing import Optional
 from sqlalchemy import CheckConstraint, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.config import (MAX_PHONE_LENGTH, MAX_STRING_LENGTH, MAX_TG_LENGTH,
-                        MAX_USERNAME_LENGTH)
+from src.config import (
+    MAX_PHONE_LENGTH,
+    MAX_STRING_LENGTH,
+    MAX_TG_LENGTH,
+    MAX_USERNAME_LENGTH,
+)
 from src.database.base import Base
 
 

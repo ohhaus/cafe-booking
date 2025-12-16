@@ -1,13 +1,14 @@
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import sys
-from logging.handlers import RotatingFileHandler
 
 from colorama import init
 
 from src.common.logging.filters import UserFilter
 from src.common.logging.formatters import ColoredFormatter
 from src.config import COUNT_FILES, MAX_BYTES
+
 
 # Инициализация colorama
 init(strip=False, autoreset=True)
