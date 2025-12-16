@@ -4,8 +4,12 @@ from typing import Optional, TYPE_CHECKING
 
 # import uuid
 from sqlalchemy import Column, ForeignKey, String, Table as SATable, and_
-from sqlalchemy.dialects.postgres import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import (
+    Mapped,
+    mapped_column,
+    relationship,
+)
 
 from src.config import (
     MAX_ADDRESS_LENGTH,
@@ -22,6 +26,7 @@ from src.users.models import User, UserRole
 
 if TYPE_CHECKING:
     from src.booking.models import Booking
+    from src.dishes.models import Dish
     from src.slots.models import Slot
     from src.tables.models import Table
 
@@ -64,6 +69,9 @@ class Cafe(Base):
             Одно кафе может иметь множество бронирований. При удалении кафе
             все связанные брони удаляются (cascade='all, delete-orphan' на
             стороне Cafe, ondelete='CASCADE' на стороне Booking).
+        dishes: Связь многие-ко-многим с блюдами (Dish) через
+            промежуточную таблицу dishes_cafes. Позволяет получить все блюда,
+            доступные в данном кафе.
 
     Ограничения:
         - Уникальность полей name, address и phone на уровне БД.
@@ -129,4 +137,9 @@ class Cafe(Base):
         'Booking',
         back_populates='cafe',
         cascade='all, delete-orphan',
+    )
+    dishes: Mapped[list['Dish']] = relationship(
+        'Dish',
+        back_populates='cafes',
+        secondary='dishes_cafes',
     )
