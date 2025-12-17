@@ -110,3 +110,13 @@ class CafeUpdate(BaseModel):
             if field in self.model_fields_set and getattr(self, field) is None:
                 raise ValueError(f'Поле {field} не может быть null')
         return self
+
+
+class CafeCreateDB(BaseModel):
+    """Схема представления БД."""
+
+    name: str
+    address: str
+    phone: PhoneStr
+    description: Optional[str] = None
+    photo_id: UUID

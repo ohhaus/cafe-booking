@@ -1,10 +1,23 @@
 from uuid import UUID
 
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from src.cafes.models import Cafe, cafes_managers
 from src.users.models import User, UserRole
+
+
+def manager_conditions(
+    ids: set[UUID],
+) -> tuple[ColumnElement[bool], ...]:
+    """Возвращает кортеж условий для запроса."""
+    return (
+        User.id.in_(ids),
+        User.role == UserRole.MANAGER,
+        User.active.is_(True),
+    )
 
 
 async def sync_cafe_managers(
@@ -15,45 +28,39 @@ async def sync_cafe_managers(
     """Синхронизирует список менеджеров кафе с переданным списком UUID."""
     new_ids = set(new_managers_ids)
 
-    result = await db.execute(
-        select(cafes_managers.c.user_id).where(
-            cafes_managers.c.cafe_id == cafe.id,
-        ),
-    )
-    current_ids = set(result.scalars().all())
-
-    to_add = new_ids - current_ids
-    to_remove = current_ids - new_ids
-
     if new_ids:
-        result = await db.execute(
-            select(User.id).where(
-                User.id.in_(new_ids),
-                User.role == UserRole.MANAGER,
-                User.active.is_(True),
-            ),
-        )
-        valid_ids = set(result.scalars().all())
+        conds = manager_conditions(new_ids)
 
-        if valid_ids != new_ids:
+        result = await db.execute(
+            select(func.count(User.id)).where(*conds),
+        )
+        cnt = int(result.scalar() or 0)
+
+        if cnt != len(new_ids):
+            result = await db.execute(
+                select(User.id).where(*conds),
+            )
+            valid_ids = set(result.scalars().all())
             missing = new_ids - valid_ids
             raise ValueError(
-                'Некоторые managers_id не найдены или'
-                f'не являются активными MANAGER: {missing}',
+                'Некоторые managers_id не найдены'
+                'или не являются активными MANAGER: '
+                f'{missing}',
             )
 
-    if to_remove:
-        await db.execute(
-            delete(cafes_managers).where(
-                cafes_managers.c.cafe_id == cafe.id,
-                cafes_managers.c.user_id.in_(to_remove),
-            ),
+    del_stmt = delete(cafes_managers).where(
+        cafes_managers.columns.cafe_id == cafe.id,
+    )
+    if new_ids:
+        del_stmt = del_stmt.where(
+            cafes_managers.columns.user_id.notin_(new_ids),
         )
-    if to_add:
-        await db.execute(
-            insert(cafes_managers),
-            [
-                {'cafe_id': cafe.id, 'user_id': manager_id}
-                for manager_id in to_add
-            ],
+    await db.execute(del_stmt)
+
+    if new_ids:
+        ins_stmt = (
+            pg_insert(cafes_managers)
+            .values([{'cafe_id': cafe.id, 'user_id': mid} for mid in new_ids])
+            .on_conflict_do_nothing(index_elements=['cafe_id', 'user_id'])
         )
+        await db.execute(ins_stmt)

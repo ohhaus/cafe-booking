@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
-# import uuid
 from sqlalchemy import (
     Column,
     ForeignKey,
@@ -26,14 +25,10 @@ from src.config import (
     MAX_PHONE_LENGTH,
 )
 from src.database import Base
+
+# from src.media.models import ImageMedia
 from src.users.models import User, UserRole
 
-
-# from src.photos.models import Photo
-
-
-if TYPE_CHECKING:
-    pass
 
 #  Ассоциативная таблица для связи "многие к многим" моделей User и Cafe.
 cafes_managers = SATable(
@@ -91,24 +86,21 @@ class Cafe(Base):
     managers: Mapped[list[User]] = relationship(
         'User',
         secondary=cafes_managers,
-        primaryjoin=id == cafes_managers.c.cafe_id,
+        primaryjoin=id == cafes_managers.columns.cafe_id,
         secondaryjoin=and_(
-            User.id == cafes_managers.c.user_id,
+            User.id == cafes_managers.columns.user_id,
             User.role == UserRole.MANAGER,
+            User.active.is_(True),
         ),
         viewonly=True,
         overlaps='managed_cafes, cafes',
     )
-    # photo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    # При мерже модуля Media нужно раскомитить.
+    # photo_id: Mapped[Optional[UUID]] = mapped_column(
     #     UUID(as_uuid=True),
-    #     ForeignKey('photo.id', ondelete='SET NULL'),
+    #     ForeignKey('image_media.id'),
     #     unique=True,
     #     nullable=True,
-    # )
-
-    # photo: Mapped[Optional[Photo]] = relationship(
-    #     back_populates='cafe',
-    #     uselist=False,
     # )
 
     __table_args__ = (

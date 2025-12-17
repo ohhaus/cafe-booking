@@ -121,3 +121,14 @@ class TimeSlotUpdate(BaseModel):
         ):
             raise ValueError('start_time должен быть меньше end_time')
         return self
+
+
+class TimeSlotCreateDB(BaseModel):
+    """Схема представления БД."""
+
+    cafe_id: UUID
+    start_time: time
+    end_time: time
+    description: Optional[str] = None
+
+    model_config = ConfigDict(extra='forbid')

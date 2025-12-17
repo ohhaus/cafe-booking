@@ -1,5 +1,5 @@
 from datetime import time
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 import uuid
 
 from sqlalchemy import (
@@ -16,10 +16,6 @@ from sqlalchemy.orm import (
 
 from src.config import MAX_DESCRIPTION_LENGTH
 from src.database import Base
-
-
-if TYPE_CHECKING:
-    pass
 
 
 class Slot(Base):

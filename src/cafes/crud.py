@@ -1,138 +1,90 @@
-from typing import Optional, Sequence
-from uuid import UUID
-
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.cafes.models import Cafe
-from src.cafes.schemas import CafeCreate, CafeUpdate
+from src.cafes.schemas import CafeCreate, CafeCreateDB, CafeUpdate
 from src.cafes.service import sync_cafe_managers
-from src.users.models import User, UserRole
+from src.database.service import DatabaseService
 
 
-async def get_cafes_list(
-    db: AsyncSession,
-    current_user: User,
-    show_all: bool = False,
-) -> Sequence[Cafe]:
-    """Получение списка кафе с учетом роли пользователя и флагом show_all."""
-    stmt = (
-        select(Cafe)
-        .options(selectinload(Cafe.managers))
-        .order_by(Cafe.created_at.desc())
-    )
-    is_admin_or_manager = current_user.role in {
-        UserRole.ADMIN,
-        UserRole.MANAGER,
-    }
-    if is_admin_or_manager:
-        if not show_all:
-            stmt = stmt.where(Cafe.active.is_(True))
-    else:
-        stmt = stmt.where(Cafe.active.is_(True))
+class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
+    """Сервис для работы с кафе.
 
-    result = await db.execute(stmt)
-    return result.scalars().all()
+    Класс расширяет базовый DatabaseService и добавляет доменную логику,
+    связанную с назначением менеджеров кафе при создании и обновлении.
 
+    Note:
+        Операции create/update выполняются в рамках одной транзакции:
+        сначала создаётся/обновляется Cafe без commit, затем синхронизируются
+        менеджеры, после чего выполняются commit и refresh.
 
-async def get_cafe_by_id(
-    db: AsyncSession,
-    current_user: User,
-    cafe_id: UUID,
-) -> Optional[Cafe]:
-    """Получение информации о кафе с учетом роли пользователя."""
-    stmt = (
-        select(Cafe)
-        .options(selectinload(Cafe.managers))
-        .where(Cafe.id == cafe_id)
-    )
-    is_admin_or_manager = current_user.role in {
-        UserRole.ADMIN,
-        UserRole.MANAGER,
-    }
-    if not is_admin_or_manager:
-        stmt = stmt.where(Cafe.active.is_(True))
+    """
 
-    result = await db.execute(stmt)
-    return result.scalars().first()
+    def __init__(self) -> None:
+        """Инициализирует сервис и привязывает его к модели Cafe."""
+        super().__init__(Cafe)
 
+    async def create_cafe(
+        self,
+        session: AsyncSession,
+        cafe_in: CafeCreate,
+    ) -> Cafe:
+        """Создаёт кафе и синхронизирует список менеджеров.
 
-async def create_cafe(
-    db: AsyncSession,
-    current_user: User,
-    data: CafeCreate,
-) -> Cafe:
-    """Создание нового кафе."""
-    if current_user.role not in {
-        UserRole.ADMIN,
-        UserRole.MANAGER,
-    }:
-        raise PermissionError(
-            'Недостаточно прав для обновления кафе.',
-        )
-    cafe = Cafe(
-        name=data.name,
-        address=data.address,
-        phone=str(data.phone),
-        description=data.description,
-        photo_id=data.photo_id,
-    )
-    await db.add(cafe)
-    await db.flush()
+        Алгоритм:
+        1) Извлекает managers_id из входной схемы.
+        2) Создаёт Cafe через базовый CRUD без commit.
+        3) Делает flush, чтобы получить идентификатор созданного кафе.
+        4) Если переданы managers_id — синхронизирует связи менеджеров.
+        5) Выполняет commit и refresh и возвращает объект Cafe.
+        """
+        managers_ids = cafe_in.managers_id
 
-    if data.managers_id:
-        await sync_cafe_managers(db, cafe, data.managers_id)
+        cafe_db = CafeCreateDB(**cafe_in.model_dump(exclude={'managers_id'}))
 
-    await db.commit()
-    await db.refresh(cafe)
-    return cafe
+        cafe = await super().create(session, obj_in=cafe_db, commit=False)
+        await session.flush()
 
+        if managers_ids:
+            await sync_cafe_managers(session, cafe, managers_ids)
 
-async def update_cafe(
-    db: AsyncSession,
-    current_user: User,
-    cafe_id: UUID,
-    data: CafeUpdate,
-) -> Optional[Cafe]:
-    """Обновление объекта Кафе."""
-    if current_user.role not in {
-        UserRole.ADMIN,
-        UserRole.MANAGER,
-    }:
-        raise PermissionError(
-            'Недостаточно прав для обновления кафе.',
+        await session.commit()
+        await session.refresh(cafe)
+        return cafe
+
+    async def update_cafe(
+        self,
+        session: AsyncSession,
+        cafe: Cafe,
+        cafe_in: CafeUpdate,
+    ) -> Cafe:
+        """Обновляет кафе и при необходимости синхронизирует менеджеров.
+
+        Алгоритм:
+          1) Собирает payload только из переданных полей (exclude_unset=True).
+          2) Извлекает managers_id из payload (если ключ присутствует).
+          3) Нормализует phone к строке, если значение задано.
+          4) Обновляет Cafe через базовый CRUD без commit.
+          5) Если managers_id был передан (даже пустым списком) —
+             синхронизирует связи менеджеров.
+          6) Выполняет commit и refresh и возвращает объект Cafe.
+        """
+        payload = cafe_in.model_dump(exclude_unset=True)
+
+        managers_ids = payload.pop('managers_id', None)
+
+        if 'phone' in payload and payload['phone'] is not None:
+            payload['phone'] = str(payload['phone'])
+
+        cafe = await super().update(
+            session,
+            db_obj=cafe,
+            obj_in=payload,
+            commit=False,
         )
 
-    result = await db.execute(
-        select(Cafe)
-        .options(selectinload(Cafe.managers))
-        .where(Cafe.id == cafe_id),
-    )
-    cafe = result.scalars().first()
-    if not cafe:
-        return None
+        if managers_ids is not None:
+            await sync_cafe_managers(session, cafe, managers_ids)
 
-    payload = data.model_dump(exclude_unset=True)
-
-    for field in (
-        'name',
-        'address',
-        'phone',
-        'description',
-        'photo_id',
-        'active',
-    ):
-        if field in payload:
-            value = payload[field]
-            if field == 'phone' and value is not None:
-                value = str(value)
-            setattr(cafe, field, value)
-
-    if 'managers_id' in payload:
-        managers_ids = payload['managers_id'] or []
-        await sync_cafe_managers(db, cafe, managers_ids)
-
-    await db.commit()
-    await db.refresh(cafe)
-    return cafe
+        await session.commit()
+        await session.refresh(cafe)
+        return cafe

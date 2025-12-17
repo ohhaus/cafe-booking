@@ -3,178 +3,161 @@ from __future__ import annotations
 from typing import Optional, Sequence
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from src.cafes.models import Cafe
+from src.database.service import DatabaseService
+from src.slots.slot_and_table_helpers import (
+    apply_visibility_filters,
+    cafe_scoped_stmt,
+    rename_payload_key,
+    require_staff,
+    with_id,
+)
+from src.slots.utils import get_cafe_or_none
 from src.tables.models import Table
 from src.tables.schemas import TableCreate, TableUpdate
-from src.tables.utils import get_cafe_or_none, is_admin_or_manager
 from src.users.models import User
 
 
-async def list_tables(
-    db: AsyncSession,
-    current_user: User,
-    cafe_id: UUID,
-    show_all: bool = False,
-) -> Sequence[Table]:
-    """Получить список столов для кафе.
+class TableService(DatabaseService[Table, dict, TableUpdate]):
+    """Сервис для работы со столами в рамках кафе.
 
-    Поведение по ролям:
-      - ADMIN/MANAGER:
-          * show_all=True  -> все столы кафе (active и не active)
-          * show_all=False -> только активные столы (active=True)
-      - USER:
-          * всегда только активные столы (active=True)
-          * если кафе не активно — вернуть пустой список (как “нет доступных”)
-
-    Возвращает:
-      - список объектов Table (может быть пустым).
+    Класс расширяет базовый DatabaseService и добавляет доменную логику:
+    - ограничение доступа (только staff может создавать/обновлять);
+    - правила видимости (user видит только активные записи и только в
+    активном кафе);
+    - привязку сущности к конкретному кафе через cafe_id;
+    - маппинг полей API -> модель (
+        seat_number -> count_place,
+        is_active -> active
+    ).
     """
-    cafe = await get_cafe_or_none(db, cafe_id)
-    if not cafe:
-        return []
 
-    stmt = (
-        select(Table)
-        .options(selectinload(Table.cafe))
-        .where(Table.cafe_id == cafe_id)
-        .order_by(Table.created_at.desc())
-    )
+    def __init__(self) -> None:
+        """Инициализирует сервис и привязывает его к модели Table."""
+        super().__init__(Table)
 
-    if is_admin_or_manager(current_user):
-        if not show_all:
-            stmt = stmt.where(Table.active.is_(True))
-    else:
-        if not cafe.active:
-            return []
-        stmt = stmt.where(Table.active.is_(True))
-    result = await db.execute(stmt)
-    return result.scalars().all()
+    async def list_tables(
+        self,
+        session: AsyncSession,
+        current_user: User,
+        cafe_id: UUID,
+        show_all: bool = False,
+    ) -> Sequence[Table]:
+        """Возвращает список столов кафе с учётом прав доступа.
 
-
-async def get_table(
-    db: AsyncSession,
-    current_user: User,
-    cafe_id: UUID,
-    table_id: UUID,
-) -> Optional[Table]:
-    """Получить информацию о конкретном столе в кафе по его id.
-
-    Поведение по ролям:
-      - ADMIN/MANAGER: видят стол независимо от active
-        (если он в указанном кафе)
-      - USER: видит только если и кафе active=True, и стол active=True
-
-    Возвращает:
-      - Table, если найден и доступен по правилам,
-      - None, если не найден или недоступен (роутер решит: 404/403).
-    """
-    stmt = (
-        select(Table)
-        .options(selectinload(Table.cafe))
-        .where(Table.id == table_id, Table.cafe_id == cafe_id)
-    )
-    if not is_admin_or_manager(current_user):
-        stmt = (
-            stmt.where(Table.active.is_(True))
-            .join(Table.cafe)
-            .where(Cafe.active.is_(True))
+        Правила:
+            - Staff-пользователь:
+                * show_all=True  -> возвращает все столы кафе.
+                * show_all=False -> возвращает только активные столы.
+            - Обычный пользователь:
+                * возвращает только активные столы.
+                * только если кафе активно (иначе вернёт пустой результат).
+        """
+        stmt = cafe_scoped_stmt(
+            Table,
+            cafe_id,
+        ).order_by(Table.created_at.desc())
+        stmt = apply_visibility_filters(
+            stmt,
+            Table,
+            current_user,
+            show_all=show_all,
         )
 
-    result = await db.execute(stmt)
-    return result.scalars().first()
+        result = await session.execute(stmt)
+        return result.scalars().all()
 
+    async def get_table(
+        self,
+        session: AsyncSession,
+        current_user: User,
+        cafe_id: UUID,
+        table_id: UUID,
+    ) -> Optional[Table]:
+        """Возвращает стол по UUID в рамках кафе с учётом правил видимости.
 
-async def create_table(
-    db: AsyncSession,
-    current_user: User,
-    cafe_id: UUID,
-    data: TableCreate,
-) -> Table:
-    """Создать новый стол в кафе.
+        Для обычного пользователя применяется фильтрация по активности стола
+        и активности кафе. Для staff-ролей возвращается запись независимо от
+        активности (если запись существует в рамках cafe_id).
+        """
+        stmt = cafe_scoped_stmt(Table, cafe_id)
+        stmt = with_id(stmt, Table, table_id)
+        stmt = apply_visibility_filters(stmt, Table, current_user)
 
-    Доступ:
-      - только ADMIN/MANAGER
+        result = await session.execute(stmt)
+        return result.scalars().first()
 
-    Валидация:
-      - кафе должно существовать
-      - seat_number из API кладём в count_place модели
+    async def create_table(
+        self,
+        session: AsyncSession,
+        current_user: User,
+        cafe_id: UUID,
+        data: TableCreate,
+    ) -> Table:
+        """Создаёт стол в указанном кафе.
 
-    Ошибки:
-      - PermissionError: если нет прав (роутер -> 403)
-      - LookupError: если кафе не найдено (роутер -> 404)
-    """
-    if not is_admin_or_manager(current_user):
-        raise PermissionError('Недостаточно прав для создания стола')
+        Доступно только staff-пользователям. Перед созданием проверяет,
+        что кафе существует. Дополнительно выполняет маппинг полей:
+            - seat_number -> count_place
+        Также устанавливает cafe_id для создаваемой записи.
+        """
+        require_staff(current_user, 'Недостаточно прав для создания стола')
 
-    cafe = await get_cafe_or_none(db, cafe_id)
-    if not cafe:
-        raise LookupError('Кафе не найдено')
+        cafe = await get_cafe_or_none(session, cafe_id)
+        if not cafe:
+            raise LookupError('Кафе не найдено')
 
-    table = Table(
-        cafe_id=cafe_id,
-        description=data.description,
-        count_place=data.seat_number,  # API -> DB
-    )
+        payload = data.model_dump()
+        rename_payload_key(
+            payload,
+            api_field='seat_number',
+            model_field='count_place',
+        )
+        payload['cafe_id'] = cafe_id
 
-    db.add(table)
-    await db.commit()
-    await db.refresh(table)
-    return table
+        return await super().create(session, obj_in=payload, commit=True)
 
+    async def update_table(
+        self,
+        session: AsyncSession,
+        current_user: User,
+        cafe_id: UUID,
+        table_id: UUID,
+        data: TableUpdate,
+    ) -> Optional[Table]:
+        """Частично обновляет стол в рамках кафе.
 
-async def update_table(
-    db: AsyncSession,
-    current_user: User,
-    cafe_id: UUID,
-    table_id: UUID,
-    data: TableUpdate,
-) -> Table | None:
-    """Частично обновить стол в кафе (PATCH).
+        Доступно только staff-пользователям. Обновление выполняется только для
+        записи, которая принадлежит указанному cafe_id.
+        Выполняет маппинг полей:
+            - is_active -> active
+            - seat_number -> count_place
+        """
+        require_staff(current_user, 'Недостаточно прав для обновления стола')
 
-    Доступ:
-      - только ADMIN/MANAGER
+        stmt = with_id(cafe_scoped_stmt(Table, cafe_id), Table, table_id)
+        result = await session.execute(stmt)
+        table = result.scalars().first()
+        if not table:
+            return None
 
-    Обновляемые поля:
-      - description
-      - seat_number (маппим в count_place)
-      - is_active (маппим в active)
+        payload = data.model_dump(exclude_unset=True)
 
-    Возвращает:
-      - обновлённый Table, если найден,
-      - None, если стол/кафе-связка не найдены (роутер -> 404).
+        rename_payload_key(
+            payload,
+            api_field='is_active',
+            model_field='active',
+        )
+        rename_payload_key(
+            payload,
+            api_field='seat_number',
+            model_field='count_place',
+        )
 
-    Ошибки:
-      - PermissionError: если нет прав (роутер -> 403).
-    """
-    if not is_admin_or_manager(current_user):
-        raise PermissionError('Недостаточно прав для обновления стола')
-
-    result = await db.execute(
-        select(Table)
-        .options(selectinload(Table.cafe))
-        .where(Table.id == table_id, Table.cafe_id == cafe_id),
-    )
-    table = result.scalars().first()
-    if not table:
-        return None
-
-    payload = data.model_dump(exclude_unset=True)
-
-    # is_active (API) -> active (DB)
-    if 'is_active' in payload:
-        table.active = payload['is_active']
-
-    if 'description' in payload:
-        table.description = payload['description']
-
-    # seat_number (API) -> count_place (DB)
-    if 'seat_number' in payload:
-        table.count_place = payload['seat_number']
-
-    await db.commit()
-    await db.refresh(table)
-    return table
+        return await super().update(
+            session,
+            db_obj=table,
+            obj_in=payload,
+            commit=True,
+        )
