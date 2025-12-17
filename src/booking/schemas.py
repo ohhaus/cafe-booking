@@ -96,7 +96,9 @@ class BookingInfo(BaseModel):
     id: UUID
     user: UserShortInfo
     cafe: CafeShortInfo
-    tables_slots: List[TablesSlotsInfo]
+    tables_slots: List[TablesSlotsInfo] = Field(
+        validation_alias='booking_table_slots',
+    )
     guest_number: int
     note: str
     status: BookingStatus
