@@ -43,6 +43,7 @@ preview = true
 exclude = [
     "__pycache__",
     "revisions",
+    "versions",
 ]
 
 [tool.ruff.format]
