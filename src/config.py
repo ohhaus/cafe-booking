@@ -9,7 +9,7 @@ class DatabaseSettings(BaseSettings):
 
     URL: str = Field(
         default='postgresql+asyncpg://postgres:postgres@localhost:5432/postgres',
-    )  # noqa
+    )
     POOL_TIMEOUT: int = Field(default=30)
     POOL_RECYCLE: int = Field(default=1800)
     POOL_SIZE: int = Field(default=20)
@@ -31,7 +31,11 @@ class AuthSettings(BaseSettings):
     access_token_expire_minutes: int = 60
     algorithm: str = 'HS256'
 
-    model_config = SettingsConfigDict(env_prefix='AUTH_')
+    model_config = SettingsConfigDict(
+        env_prefix='AUTH_',
+        env_file='.env',
+        env_file_encoding='utf-8',
+    )
 
 
 class Settings(BaseSettings):
@@ -55,8 +59,8 @@ MAX_DESCRIPTION_LENGTH = 500
 MAX_USERNAME_LENGTH = 50
 MAX_STRING_LENGTH = 255
 MAX_PHONE_LENGTH = 32
-MAX_PASSWORD_LENGTH = 8
-MIN_PASSWORD_LENGTH = 100
+MAX_PASSWORD_LENGTH = 100
+MIN_PASSWORD_LENGTH = 8
 MIN_TG_LENGTH = 5
 MIN_USERNAME_LENGTH = 6
 MAX_TG_LENGTH = 64

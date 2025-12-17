@@ -123,3 +123,10 @@ max-line-length = 79
 asyncio_mode = "auto"
 pythonpath = ["."]
 testspath = ["tests"]
+addopts = [
+    "--import-mode=importlib",
+    "-v",
+    "--strict-markers",
+    "--disable-warnings",
+    "-p no:warnings"
+]
