@@ -5,6 +5,24 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.cafes.models import Cafe
+from src.dishes.models import Dish
+
+
+async def check_exists_dish(
+    dish_id: int,
+    session: AsyncSession,
+) -> Dish:
+    """Проверка существования блюда по ID."""
+    result = await session.execute(
+        select(Dish).where(Dish.id == dish_id, Dish.is_active),
+    )
+    dish = result.scalars().first()
+    if not dish:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail='Блюдо не найдено',
+        )
+    return dish
 
 
 async def check_exists_cafes_ids(
