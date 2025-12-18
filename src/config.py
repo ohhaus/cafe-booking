@@ -4,12 +4,6 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-MAX_NAME_LENGTH = 100
-MAX_ADDRESS_LENGTH = 250
-MAX_PHONE_LENGTH = 32
-MAX_DESCRIPTION_LENGTH = 500
-
-
 class DatabaseSettings(BaseSettings):
     """Настройки базы данных."""
 
@@ -59,6 +53,9 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+MAX_NAME_LENGTH = 100
+MAX_ADDRESS_LENGTH = 250
+MAX_DESCRIPTION_LENGTH = 500
 MAX_USERNAME_LENGTH = 50
 MAX_STRING_LENGTH = 255
 MAX_PHONE_LENGTH = 32
