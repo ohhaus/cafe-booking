@@ -4,17 +4,21 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+DISH_MAX_PRICE = 10000
+DISH_MIN_PRICE = 1
 MAX_NAME_LENGTH = 100
 MAX_ADDRESS_LENGTH = 250
 MAX_PHONE_LENGTH = 32
 MAX_DESCRIPTION_LENGTH = 500
+MIN_DESCRIPTION_LENGTH = 1
+UUID_LENGTH = 36
 
 
 class DatabaseSettings(BaseSettings):
     """Настройки базы данных."""
 
     URL: str = Field(
-        default='postgresql+asyncpg://postgres:postgres@localhost:5432/postgres',
+        default='postgresql+asyncpg://postgres:postgres@localhost:5432/postgres',  # noqa: E501
     )
     POOL_TIMEOUT: int = Field(default=30)
     POOL_RECYCLE: int = Field(default=1800)
