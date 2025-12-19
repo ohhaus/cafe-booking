@@ -1,53 +1,35 @@
 from datetime import time
-from typing import TYPE_CHECKING
+from typing import Optional
 import uuid
 
 from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
+    String,
     Time,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
-    relationship,
 )
 
-from src.cafes.models import Cafe
+from src.config import MAX_DESCRIPTION_LENGTH
 from src.database import Base
-
-
-if TYPE_CHECKING:
-    from src.booking.models import BookingTableSlot
 
 
 class Slot(Base):
     """Модель временных слотов.
 
-    Relationships:
-        cafe: Связь многие-к-одному с моделью Cafe.
-            Каждый слот относится к одному кафе. На стороне Cafe доступен
-            список слотов через атрибут Cafe.slots. При удалении кафе все
-            связанные слоты удаляются (ondelete='CASCADE', а также
-            cascade='all, delete-orphan' на стороне Cafe).
-        booking_table_slots: Связь один-ко-многим с BookingTableSlot.
-            Используется для хранения конкретных бронирований, в которых
-            участвует данный слот.
-
     Ограничения:
         - CHECK CONSTRAINT slot_start_before_end:
           гарантирует, что start_time < end_time, то есть слот имеет
           положительную длительность и не вырождается в нулевой интервал.
-        - Уникальность cafe_id: один слот на одно кафе.
-          (если потребуется несколько слотов на кафе, это ограничение
-          нужно будет убрать).
     """
 
     cafe_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey('cafe.id', ondelete='CASCADE'),
-        unique=True,
+        ForeignKey('cafe.id'),
         nullable=False,
     )
     start_time: Mapped[time] = mapped_column(
@@ -58,14 +40,9 @@ class Slot(Base):
         Time(timezone=False),
         nullable=False,
     )
-
-    cafe: Mapped['Cafe'] = relationship(
-        back_populates='slots',
-    )
-    booking_table_slots: Mapped[list['BookingTableSlot']] = relationship(
-        'BookingTableSlot',
-        back_populates='slot',
-        cascade='all, delete-orphan',
+    description: Mapped[Optional[str]] = mapped_column(
+        String(MAX_DESCRIPTION_LENGTH),
+        nullable=True,
     )
 
     __table_args__ = (
