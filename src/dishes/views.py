@@ -122,7 +122,7 @@ async def create_dish(
             allowed_roles=[UserRole.MANAGER, UserRole.ADMIN],
         ),
     ),
-) -> DishInfo:
+) -> DishCreate:
     """Создание нового блюда."""
     logger.info(
         'Пользователь %s инициировал создание Блюда %d',
@@ -131,33 +131,25 @@ async def create_dish(
         extra={'user_id': str(current_user.id)},
     )
 
+    # Проверка существования кафе
     await check_exists_cafes_ids(dish_in.cafes_id, session)
 
+    # Логика создания блюда
     try:
-        dish = await crud_dish.create_dish(session=session, obj_in=dish_in)
-        await session.commit()
-        await session.refresh(dish)
-        return DishInfo.model_validate(dish, from_attributes=True)
-    except DatabaseError as e:
-        logger.error(
-            'Ошибка базы данных при создании блюда: %s',
-            str(e),
-            extra={'user_id': str(current_user.id)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Временная ошибка базы данных. Попробуйте позже.',
-        ) from e
+        crud = crud_dish(session)
+        new_dish = await crud.create_dish(dish_in)
+        return DishInfo.model_validate(new_dish)
+
     except Exception as e:
         logger.critical(
-            'Неожиданная ошибка при создании блюда: %s',
+            'Ошибка при создании блюда: %s',
             str(e),
             extra={'user_id': str(current_user.id)},
             exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Внутренняя ошибка сервера.',
+            detail='Ошибка при создании блюда.',
         ) from e
 
 

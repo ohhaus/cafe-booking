@@ -42,7 +42,7 @@ class DishCreate(BaseDish):
     """Создание блюда."""
 
     price: int = Field(gt=DISH_MIN_PRICE, le=DISH_MAX_PRICE)
-    cafes_id: list[int]
+    cafes_id: list[UUID]
 
 
 class DishUpdate(BaseModel):
@@ -56,7 +56,7 @@ class DishUpdate(BaseModel):
     )
     photo_id: Optional[str] = Field(None, max_length=UUID_LENGTH)
     price: Optional[int] = Field(None, ge=DISH_MIN_PRICE, le=DISH_MAX_PRICE)
-    cafes_id: Optional[List[int]]
+    cafes_id: Optional[List[UUID]]
     is_active: bool = True
     price: int = Field(gt=0)
 
