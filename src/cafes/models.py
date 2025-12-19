@@ -18,6 +18,8 @@ from sqlalchemy.orm import (
     relationship,
 )
 
+# from src.media.models import ImageMedia
+from src.booking.models import Booking
 from src.config import (
     MAX_ADDRESS_LENGTH,
     MAX_DESCRIPTION_LENGTH,
@@ -25,8 +27,6 @@ from src.config import (
     MAX_PHONE_LENGTH,
 )
 from src.database import Base
-
-# from src.media.models import ImageMedia
 from src.users.models import User, UserRole
 
 
@@ -94,6 +94,12 @@ class Cafe(Base):
         ),
         viewonly=True,
         overlaps='managed_cafes, cafes',
+    )
+    # Связи
+    bookings: Mapped[list['Booking']] = relationship(
+        'Booking',
+        back_populates='cafe',
+        lazy='selectin',
     )
     # При мерже модуля Media нужно раскомитить.
     # photo_id: Mapped[Optional[UUID]] = mapped_column(

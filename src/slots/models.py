@@ -1,5 +1,5 @@
 from datetime import time
-from typing import Optional
+from typing import List, Optional
 import uuid
 
 from sqlalchemy import (
@@ -12,8 +12,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
+    relationship,
 )
 
+from src.booking import BookingTableSlot
 from src.config import MAX_DESCRIPTION_LENGTH
 from src.database import Base
 
@@ -43,6 +45,13 @@ class Slot(Base):
     description: Mapped[Optional[str]] = mapped_column(
         String(MAX_DESCRIPTION_LENGTH),
         nullable=True,
+    )
+    # Связи
+    booking_table_slots: Mapped[List['BookingTableSlot']] = relationship(
+        back_populates='slot',
+        uselist=True,
+        lazy='selectin',
+        cascade='all',
     )
 
     __table_args__ = (
