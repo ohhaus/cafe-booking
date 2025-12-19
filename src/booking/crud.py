@@ -69,6 +69,7 @@ class BookingCRUD:
         table_id: UUID,
         slot_id: UUID,
         booking_date: date,
+        exclude_booking_id: Optional[UUID] = None,
     ) -> bool:
         """Проверить, занят ли стол в указанный временной слот на дату."""
         conflict_query = (
@@ -83,6 +84,10 @@ class BookingCRUD:
             )
             .select()
         )
+        if exclude_booking_id:
+            conflict_query = conflict_query.where(
+                BookingTableSlot.booking_id != exclude_booking_id,
+            )
 
         result = await self.db.execute(conflict_query)
         return bool(result.scalar_one())

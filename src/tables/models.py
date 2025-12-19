@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 import uuid
 
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, String
@@ -6,8 +6,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
+    relationship,
 )
 
+from src.booking import BookingTableSlot
 from src.config import MAX_DESCRIPTION_LENGTH
 from src.database import Base
 
@@ -45,6 +47,13 @@ class Table(Base):
     description: Mapped[Optional[str]] = mapped_column(
         String(MAX_DESCRIPTION_LENGTH),
         nullable=True,
+    )
+    # Связи
+    booking_table_slots: Mapped[List['BookingTableSlot']] = relationship(
+        back_populates='table',
+        uselist=True,
+        lazy='selectin',
+        cascade='all',
     )
 
     __table_args__ = (
