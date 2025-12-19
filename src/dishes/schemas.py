@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
@@ -14,12 +15,20 @@ from src.config import (
 )
 
 
+class CustomErrorResponse(BaseModel):
+    """Схема для пользовательских ошибок."""
+
+    code: int
+    message: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class BaseDish(BaseModel):
     """Базовая схема блюда."""
 
+    id: UUID
     name: str = Field(..., max_length=MAX_NAME_LENGTH)
-    description: Optional[str]
-    photo_id: Optional[UUID]
     description: Optional[str] = Field(
         None,
         max_length=MAX_DESCRIPTION_LENGTH,
@@ -52,17 +61,12 @@ class DishUpdate(BaseModel):
     price: int = Field(gt=0)
 
 
-class DishShortInfo(BaseDish):
-    """Отдача информации о блюде."""
+class DishInfo(BaseDish):
+    """Полная информации о блюде."""
 
-    id: int
-    model_config = ConfigDict(from_attributes=True)
-
-
-class DishInfo(DishShortInfo):
-    """Отдача информации о блюде."""
-
-    is_active: bool = True
     cafes: List[CafeShortInfo]
+    is_active: bool = True
+    created_at: datetime
+    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

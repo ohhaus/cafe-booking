@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 DISH_MAX_PRICE = 10000
-DISH_MIN_PRICE = 1
+DISH_MIN_PRICE = 0
 MAX_NAME_LENGTH = 100
 MAX_ADDRESS_LENGTH = 250
 MAX_PHONE_LENGTH = 32

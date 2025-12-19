@@ -8,24 +8,31 @@ todo: вынести в общий модуль, если понадобится
 
 from typing import Any, Dict
 
+from src.dishes.schemas import CustomErrorResponse
+
 
 # --- Общие ответы ---
-COMMON_RESPONSES: Dict[int, Dict[str, Any]] = {
-    404: {"description": "Ресурс не найден"},
-    500: {"description": "Внутренняя ошибка сервера"},
+OK_RESPONSES: Dict[int, Dict[str, Any]] = {
+    200: {"description": "Успешно"},
 }
 
-DISH_RESPONSES: Dict[int, Dict[str, Any]] = {
-    200: {"description": "Блюдо успешно получено"},
-    201: {"description": "Блюдо создано"},
-    400: {"description": "Ошибка в данных"},
-    **COMMON_RESPONSES,
+ERROR_RESPONSES: Dict[int, Dict[str, Any]] = {
+    401: {
+        "description": "Неавторизированный пользователь",
+        "content": {
+            "application/json": {
+                "schema": CustomErrorResponse.schema(),
+            },
+        },
+    },
+    422: {
+        "description": "Ошибка валидации данных",
+        "content": {
+            "application/json": {
+                "schema": CustomErrorResponse.schema(),
+            },
+        },
+    },
 }
 
-DISH_CREATE_RESPONSES = {201: {"description": "Блюдо создано"},
-                         **DISH_RESPONSES}
-DISH_GET_RESPONSES = {**DISH_RESPONSES}
-DISH_UPDATE_RESPONSES = {200: {"description": "Блюдо обновлено"},
-                         **DISH_RESPONSES}
-DISH_DELETE_RESPONSES = {200: {"description": "Блюдо удалено"},
-                         **DISH_RESPONSES}
+DISH_GET_RESPONSES = {**OK_RESPONSES, **ERROR_RESPONSES}
