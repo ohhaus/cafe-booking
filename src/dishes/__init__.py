@@ -1,1 +1,4 @@
-from .models import Dish as Dish
+from src.dishes.models import Dish
+
+
+__all__ = ['Dish']
