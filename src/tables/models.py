@@ -53,7 +53,6 @@ class Table(Base):
         back_populates='table',
         uselist=True,
         lazy='selectin',
-        cascade='all',
     )
 
     __table_args__ = (
