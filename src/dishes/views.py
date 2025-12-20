@@ -10,8 +10,9 @@ from src.database.sessions import get_async_session
 from src.dishes.crud import crud_dish
 from src.dishes.responses import (
     DISH_CREATE_RESPONSES,
-    DISH_GET_RESPONSES,
+    DISH_GET_BY_ID_RESPONSES,
     # DISH_UPDATE_RESPONSES,
+    DISH_GET_RESPONSES,
 )
 from src.dishes.schemas import DishCreate, DishInfo  # DishUpdate
 from src.dishes.validators import check_exists_cafes_ids  # , check_exists_dish
@@ -153,30 +154,56 @@ async def create_dish(
         ) from e
 
 
-# @router.patch(
-#     '/{dish_id}',
-#     response_model=DishInfo,
-#     responses=DISH_UPDATE_RESPONSES,
-# )
-# async def update_dish(
-#     dish_id: int,
-#     dish_in: DishUpdate,
-#     session: AsyncSession = Depends(get_async_session),
-#     current_user: User = Depends(
-#         require_roles(
-#             allowed_roles=[UserRole.MANAGER, UserRole.ADMIN],
-#         ),
-#     ),
-# ) -> DishInfo:
-#     """Частичное обновление блюда."""
-#     await check_exists_cafes_ids(dish_in.cafes_id, session)
-#     for cafe_id in dish_in.cafes_id:
-#         await can_manage_cafe(cafe_id, session, current_user)
-#     dish = await check_exists_dish(dish_id=dish_id, session=session)
-#     updated_dish = await crud_dish.update(
-#         session=session,
-#         db_obj=dish,
-#         obj_in=dish_in,
-#     )
-#     await session.commit()
-#     return updated_dish
+@router.get(
+    '/{dish_id}',
+    response_model=DishInfo,
+    summary='Получение информации о блюде по его ID',
+    description=(
+        'Получение информации о блюде по его ID. '
+        'Для администраторов и менеджеров - все блюда, '
+        'для пользователей - только активные.'
+    ),
+    responses=DISH_GET_BY_ID_RESPONSES,
+)
+async def get_dish_by_id(
+    dish_id: int,
+    current_user: User = Depends(require_roles(allow_guest=False)),
+    session: AsyncSession = Depends(get_async_session),
+) -> DishInfo:
+    """Получение информации о блюде по его ID."""
+    try:
+        crud = crud_dish(session)
+        is_staff = current_user.is_staff()
+
+        # Получаем блюдо по ID
+        dish = await crud.get_dish_by_id(dish_id=dish_id)
+
+        # Проверка на наличие блюда
+        if not dish:
+            logger.info('Блюдо с ID %d не найдено', dish_id)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Данные не найдены",
+                )
+
+        # Если пользователь не является администратором или менеджером,
+        # проверяем статус блюда
+        if not is_staff and not dish.is_active:
+            logger.info('Доступ к неактивному блюду для пользователя с ID %d',
+                        current_user.id,
+                        )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Доступ запрещен",
+                )
+
+        return dish
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error('Ошибка при получении блюда: %s', str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ошибка в параметрах запроса",
+            )

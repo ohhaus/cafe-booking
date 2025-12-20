@@ -58,6 +58,11 @@ ERROR_403_RESPONSE = create_error_response(
     "Доступ запрещен",
 )
 
+ERROR_404_RESPONSE = create_error_response(
+    HTTPStatus.NOT_FOUND,
+    "Данные не найдены",
+)
+
 ERROR_422_RESPONSE = create_error_response(
     HTTPStatus.UNPROCESSABLE_ENTITY,
     "Ошибка валидации данных",
@@ -73,3 +78,10 @@ DISH_CREATE_RESPONSES = {**CREATED_RESPONSE,
                          **ERROR_401_RESPONSE,
                          **ERROR_403_RESPONSE,
                          **ERROR_422_RESPONSE}
+
+DISH_GET_BY_ID_RESPONSES = {**CREATED_RESPONSE,
+                            **ERROR_400_RESPONSE,
+                            **ERROR_401_RESPONSE,
+                            **ERROR_403_RESPONSE,
+                            **ERROR_404_RESPONSE,
+                            **ERROR_422_RESPONSE}
