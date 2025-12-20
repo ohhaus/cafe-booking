@@ -18,7 +18,7 @@ def _extract_user(kwargs: dict[str, Any]) -> str:
     user_obj = kwargs.get('current_user')
 
     if user_obj and hasattr(user_obj, 'username') and hasattr(user_obj, 'id'):
-        from src.auth.models import UserRole
+        from src.users.models import UserRole
 
         role_str = (
             UserRole(user_obj.role).name

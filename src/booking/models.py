@@ -1,5 +1,5 @@
 from datetime import date
-from typing import List
+from typing import List, TYPE_CHECKING
 import uuid
 
 from sqlalchemy import (
@@ -14,11 +14,14 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.booking.constants import BookingStatus, MAX_NOTES_LENGTH
-from src.cafes.models import Cafe
 from src.database import Base
-from src.slots.models import Slot
-from src.tables.models import Table
-from src.users.models import User
+
+
+if TYPE_CHECKING:
+    from src.cafes.models import Cafe
+    from src.slots.models import Slot
+    from src.tables.models import Table
+    from src.users.models import User
 
 
 class Booking(Base):
@@ -34,21 +37,17 @@ class Booking(Base):
     booking_table_slots (BookingTableSlot):
         Связь один-ко-многим. Обратная — `BookingTableSlot.booking`.
         Позволяет получить забронированный стол и временной слот.
-
-    Constraints:
-        - Поле `booking_id` в `BookingTableSlot` уникально — гарантирует,
-          что одна бронь связана только с одним столом и слотом.
     """
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey('user.id', ondelete='CASCADE'),
+        ForeignKey('user.id'),
         nullable=False,
         comment='ID пользователя, который создал бронь',
     )
     cafe_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey('cafe.id', ondelete='CASCADE'),
+        ForeignKey('cafe.id'),
         comment='ID кафе, в котором создана бронь',
         nullable=False,
     )
@@ -152,19 +151,19 @@ class BookingTableSlot(Base):
 
     booking_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey('booking.id', ondelete='CASCADE'),
+        ForeignKey('booking.id'),
         nullable=False,
         comment='Ссылка на бронь',
     )
     table_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey('table.id', ondelete='CASCADE'),
+        ForeignKey('table.id'),
         nullable=False,
         comment='Ссылка на забронированный стол',
     )
     slot_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey('slot.id', ondelete='CASCADE'),
+        ForeignKey('slot.id'),
         nullable=False,
         comment='Ссылка на временной слот',
     )

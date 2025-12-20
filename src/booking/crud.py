@@ -1,9 +1,10 @@
 from datetime import date
-from typing import Any, List, Optional, Sequence
+from typing import List, Optional, Sequence
 from uuid import UUID
 
 from sqlalchemy import and_, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.booking.models import Booking, BookingStatus, BookingTableSlot
 from src.cafes.models import Cafe
@@ -23,7 +24,7 @@ class BookingCRUD:
         result = await self.db.execute(
             select(Cafe).where(
                 Cafe.id == cafe_id,
-                Cafe.active,
+                Cafe.active.is_(True),
             ),
         )
         return result.scalar_one_or_none()
@@ -32,13 +33,16 @@ class BookingCRUD:
         self,
         table_ids: List[UUID],
         cafe_id: UUID,
-    ) -> Sequence[Any]:
+    ) -> Sequence[Table]:
         """Получить список активных столов по ID и привязке к кафе."""
+        if not table_ids:
+            return []
+
         result = await self.db.execute(
             select(Table).where(
                 Table.id.in_(table_ids),
                 Table.cafe_id == cafe_id,
-                Table.active,
+                Table.active.is_(True),
             ),
         )
         return result.scalars().all()
@@ -47,13 +51,15 @@ class BookingCRUD:
         self,
         slot_ids: List[UUID],
         cafe_id: UUID,
-    ) -> Sequence[Any]:
+    ) -> Sequence[Slot]:
         """Получить список активных временных слотов по ID."""
+        if not slot_ids:
+            return []
         result = await self.db.execute(
             select(Slot).where(
                 Slot.id.in_(slot_ids),
                 Slot.cafe_id == cafe_id,
-                Slot.active,
+                Slot.active.is_(True),
             ),
         )
         return result.scalars().all()
@@ -63,6 +69,7 @@ class BookingCRUD:
         table_id: UUID,
         slot_id: UUID,
         booking_date: date,
+        exclude_booking_id: Optional[UUID] = None,
     ) -> bool:
         """Проверить, занят ли стол в указанный временной слот на дату."""
         conflict_query = (
@@ -72,14 +79,18 @@ class BookingCRUD:
                     BookingTableSlot.table_id == table_id,
                     BookingTableSlot.slot_id == slot_id,
                     BookingTableSlot.booking_date == booking_date,
-                    BookingTableSlot.active,
+                    BookingTableSlot.active.is_(True),
                 ),
             )
             .select()
         )
+        if exclude_booking_id:
+            conflict_query = conflict_query.where(
+                BookingTableSlot.booking_id != exclude_booking_id,
+            )
 
         result = await self.db.execute(conflict_query)
-        return result.scalar()
+        return bool(result.scalar_one())
 
     async def check_capacity(
         self,
@@ -132,3 +143,75 @@ class BookingCRUD:
             active=True,
         )
         self.db.add(booking_slot)
+
+    async def get_bookings(
+        self,
+        current_user_id: UUID,
+        show_all: bool,
+        is_staff: bool,
+        cafe_id: Optional[UUID],
+        user_id: Optional[UUID],
+    ) -> Sequence[Booking]:
+        """Получить список бронирований с фильтрацией по ролям пользователя."""
+        query = select(Booking).options(
+            selectinload(Booking.user),
+            selectinload(Booking.cafe),
+            selectinload(Booking.booking_table_slots).selectinload(
+                BookingTableSlot.table,
+            ),
+            selectinload(Booking.booking_table_slots).selectinload(
+                BookingTableSlot.slot,
+            ),
+        )
+
+        # Ограничение доступа
+        if not is_staff:
+            query = query.where(Booking.user_id == current_user_id)
+            show_all = False
+            user_id = None
+
+        # Фильтры
+        if cafe_id is not None:
+            query = query.where(Booking.cafe_id == cafe_id)
+        if is_staff and user_id is not None:
+            query = query.where(Booking.user_id == user_id)
+
+        # Активность
+        if not show_all:
+            query = query.where(Booking.active.is_(True))
+
+        query = query.order_by(
+            Booking.booking_date.desc(),
+            Booking.created_at.desc(),
+        )
+        result = await self.db.execute(query)
+        return result.scalars().all()
+
+    async def get_booking_by_id(
+        self,
+        booking_id: UUID,
+        *,
+        current_user_id: UUID,
+        is_staff: bool,
+    ) -> Optional[Booking]:
+        """Получить бронирование по ID с проверкой прав доступа."""
+        query = (
+            select(Booking)
+            .where(Booking.id == booking_id)
+            .options(
+                selectinload(Booking.user),
+                selectinload(Booking.cafe),
+                selectinload(Booking.booking_table_slots).selectinload(
+                    BookingTableSlot.table,
+                ),
+                selectinload(Booking.booking_table_slots).selectinload(
+                    BookingTableSlot.slot,
+                ),
+            )
+        )
+
+        if not is_staff:
+            query = query.where(Booking.user_id == current_user_id)
+
+        result = await self.db.execute(query)
+        return result.unique().scalar_one_or_none()

@@ -4,7 +4,7 @@ import uuid
 
 from sqlalchemy import Column, ForeignKey, Numeric, String, Table
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.config import MAX_DESCRIPTION_LENGTH, MAX_NAME_LENGTH
 from src.database import Base
@@ -58,9 +58,8 @@ class Dish(Base):
         Numeric(10, 2),
         nullable=False,
     )
-    cafes: Mapped[list['Cafe']] = mapped_column(
-        ForeignKey('cafe.id'),
+    cafes: Mapped[list['Cafe']] = relationship(
+        'Cafe',
         secondary=dish_cafe,
         back_populates='dishes',
-        viewonly=True,
     )
