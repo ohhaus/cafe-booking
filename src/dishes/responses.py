@@ -9,7 +9,8 @@ todo: вынести в общий модуль, если понадобится
 from http import HTTPStatus
 from typing import Any, Dict
 
-from src.dishes.schemas import CustomErrorResponse, DishInfo
+from src.common.schemas import CustomErrorResponse
+from src.dishes.schemas import DishInfo
 
 
 def create_error_response(

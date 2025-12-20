@@ -16,15 +16,6 @@ from src.config import (
 )
 
 
-class CustomErrorResponse(BaseModel):
-    """Схема для пользовательских ошибок."""
-
-    code: int
-    message: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class BaseDish(BaseModel):
     """Базовая схема блюда."""
 
