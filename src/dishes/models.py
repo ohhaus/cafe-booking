@@ -58,6 +58,8 @@ class Dish(Base):
         Numeric(10, 2),
         nullable=False,
     )
+
+    # Связь многие-ко-многим с Cafe
     cafes: Mapped[list['Cafe']] = relationship(
         'Cafe',
         secondary=dish_cafe,

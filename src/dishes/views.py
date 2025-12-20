@@ -122,7 +122,7 @@ async def create_dish(
             allowed_roles=[UserRole.MANAGER, UserRole.ADMIN],
         ),
     ),
-) -> DishCreate:
+) -> DishInfo:
     """Создание нового блюда."""
     logger.info(
         'Пользователь %s инициировал создание Блюда %d',

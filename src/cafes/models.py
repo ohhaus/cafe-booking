@@ -27,6 +27,7 @@ from src.config import (
     MAX_PHONE_LENGTH,
 )
 from src.database import Base
+from src.dishes.models import Dish
 from src.users.models import User, UserRole
 
 
@@ -100,6 +101,11 @@ class Cafe(Base):
         'Booking',
         back_populates='cafe',
         lazy='selectin',
+    )
+    dishes: Mapped[list['Dish']] = relationship(
+        'Dish',
+        secondary='dishes_cafes',
+        back_populates='cafes',
     )
     # При мерже модуля Media нужно раскомитить.
     # photo_id: Mapped[Optional[UUID]] = mapped_column(
