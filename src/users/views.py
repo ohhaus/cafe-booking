@@ -15,7 +15,10 @@ from src.users.validators import (
 )
 
 
-router = APIRouter()
+router = APIRouter(
+    prefix='/Users',
+    tags=['Пользователи'],
+)
 
 
 @router.post(
