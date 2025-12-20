@@ -22,6 +22,7 @@ router.post(
     response_model=Token,
     status_code=status.HTTP_200_OK,
     summary='Получение токена авторизации',
+    description='Возвращает токен для последующей авторизации пользователя.',
     responses=LOGIN_RESPONSES,
 )
 
