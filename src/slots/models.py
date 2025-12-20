@@ -51,7 +51,6 @@ class Slot(Base):
         back_populates='slot',
         uselist=True,
         lazy='selectin',
-        cascade='all',
     )
 
     __table_args__ = (
