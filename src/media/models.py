@@ -1,7 +1,7 @@
 from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 
-from ..database.base import Base
+from src.database.base import Base
 
 
 class ImageMedia(Base):

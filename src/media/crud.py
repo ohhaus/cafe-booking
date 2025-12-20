@@ -2,7 +2,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.media.models import Image
+from src.media.models import ImageMedia
 
 
 async def create_image(
@@ -15,9 +15,9 @@ async def create_image(
     mime_type: str,
     storage_path: str,
     uploaded_by_id: uuid.UUID,
-) -> Image:
+) -> ImageMedia:
     """Создаёт запись изображения в БД."""
-    image = Image(
+    image = ImageMedia(
         id=id,
         filename=filename,
         original_filename=original_filename,
@@ -32,7 +32,9 @@ async def create_image(
     return image
 
 
-async def get_image(session: AsyncSession,
-                    image_id: uuid.UUID) -> Image | None:
+async def get_image(
+    session: AsyncSession,
+    image_id: uuid.UUID,
+) -> ImageMedia | None:
     """Возвращает изображение по ID или None, если не найдено."""
-    return await session.get(Image, image_id)
+    return await session.get(ImageMedia, image_id)
