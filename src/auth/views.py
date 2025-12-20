@@ -1,5 +1,3 @@
-import logging
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,9 +13,8 @@ router = APIRouter(
     tags=['Aутентификация'],
 )
 
-logger = logging.getLogger('app')
 
-router.post(
+@router.post(
     '/auth/login',
     response_model=Token,
     status_code=status.HTTP_200_OK,
@@ -25,8 +22,6 @@ router.post(
     description='Возвращает токен для последующей авторизации пользователя.',
     responses=LOGIN_RESPONSES,
 )
-
-
 async def login(
         auth_data: LoginForm,
         session: AsyncSession = Depends(get_async_session),
