@@ -106,5 +106,15 @@ class UserService(DatabaseService[User, UserCreate, UserUpdate]):
         result = await session.execute(stmt)
         return result.scalars().all()
 
+    async def get_by_username(
+        self,
+        username: str,
+        session: AsyncSession,
+    ) -> User | None:
+        """Получает пользователя по имени пользователя."""
+        stmt = select(self.model).where(self.model.username == username)
+        result = await session.execute(stmt)
+        return result.scalars().first()
+
 
 user_crud = UserService(User)
