@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
@@ -34,8 +35,8 @@ class BaseDish(BaseModel):
         max_length=MAX_DESCRIPTION_LENGTH,
         min_length=MIN_DESCRIPTION_LENGTH,
     )
-    photo_id: Optional[str] = Field(None, max_length=UUID_LENGTH)
-    price: int = Field(..., ge=DISH_MIN_PRICE, le=DISH_MAX_PRICE)
+    photo_id: Optional[UUID] = Field(None, max_length=UUID_LENGTH)
+    price: Decimal = Field(..., ge=DISH_MIN_PRICE, le=DISH_MAX_PRICE)
 
 
 class DishCreate(BaseDish):

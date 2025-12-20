@@ -11,13 +11,12 @@ from src.dishes.crud import crud_dish
 from src.dishes.responses import (
     DISH_CREATE_RESPONSES,
     DISH_GET_BY_ID_RESPONSES,
-    # DISH_UPDATE_RESPONSES,
     DISH_GET_RESPONSES,
 )
-from src.dishes.schemas import DishCreate, DishInfo  # DishUpdate
-from src.dishes.validators import check_exists_cafes_ids  # , check_exists_dish
+from src.dishes.schemas import DishCreate, DishInfo, DishUpdate
+from src.dishes.validators import check_exists_cafes_ids, check_exists_dish
 from src.users.dependencies import require_roles
-from src.users.models import User, UserRole
+from src.users.models import User
 
 
 router = APIRouter(
@@ -118,11 +117,7 @@ async def get_dishes(
 async def create_dish(
     dish_in: DishCreate,
     session: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(
-        require_roles(
-            allowed_roles=[UserRole.MANAGER, UserRole.ADMIN],
-        ),
-    ),
+    current_user: User = Depends(require_roles(allow_guest=False)),
 ) -> DishInfo:
     """Создание нового блюда."""
     logger.info(
@@ -207,3 +202,51 @@ async def get_dish_by_id(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Ошибка в параметрах запроса",
             )
+
+
+@router.patch(
+    '/{dish_id}',
+    response_model=DishInfo,
+    summary='Обновление информации о блюде по его ID',
+    description='Обновление информации о блюде по его ID. '
+                'Только для администраторов и менеджеров.',
+    responses=DISH_GET_BY_ID_RESPONSES,
+)
+async def update_dish(
+    dish_id: UUID,
+    dish_update: DishUpdate,
+    current_user: User = Depends(require_roles(allow_guest=False)),
+    session: AsyncSession = Depends(get_async_session),
+) -> DishInfo:
+    """Обновление информации о блюде по его ID."""
+    try:
+        crud = crud_dish(session)
+        is_staff = current_user.is_staff()
+
+        # Проверяем, что пользователь имеет право на обновление
+        if not is_staff:
+            logger.info(
+                'Пользователь с ID %d не имеет прав для обновления блюда',
+                current_user.id)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Доступ запрещен")
+
+        # Проверяем, существует ли блюдо
+        await check_exists_dish(dish_id, session)
+
+        dish = await crud.get(dish_id)
+
+        # Обновляем данные блюда
+        update_dish = await crud.update_dish(
+            dish,
+            dish_update=dish_update)
+        return DishInfo.model_validate(update_dish)
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error('Ошибка при обновлении блюда: %s', str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ошибка в параметрах запроса")
