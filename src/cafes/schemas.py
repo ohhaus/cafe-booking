@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, Self, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.config import (
     MAX_ADDRESS_LENGTH,
@@ -43,8 +43,7 @@ class CafeBase(BaseModel):
         max_length=MAX_DESCRIPTION_LENGTH,
         description='Описание кафе',
     )
-    photo_id: UUID = Field(
-        ...,
+    photo_id: Optional[UUID] = Field(
         description='UUID фото',
     )
 
@@ -68,7 +67,7 @@ class CafeInfo(CafeBase):
         default_factory=list,
         description='Менеджеры кафе',
     )
-    active: bool = Field(validation_alias='active')
+    is_active: bool = Field(validation_alias='active')
     created_at: datetime
     updated_at: datetime
 
@@ -92,22 +91,15 @@ class CafeUpdate(BaseModel):
     description: str | None = None
     photo_id: UUID | None = None
     managers_id: list[UUID] | None = None
-    active: bool | None = None
+    active: bool | None = Field(None, alias='is_active')
 
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='forbid', populate_by_name=True)
 
     @model_validator(mode='after')
     def forbid_nulls(self) -> Self:
         """Валидация явных Null в обновлении объекта."""
-        for field in (
-            'name',
-            'address',
-            'phone',
-            'photo_id',
-            'managers_id',
-            'active',
-        ):
-            if field in self.model_fields_set and getattr(self, field) is None:
+        for field in self.model_fields_set:
+            if getattr(self, field) is None:
                 raise ValueError(f'Поле {field} не может быть null')
         return self
 
@@ -119,4 +111,4 @@ class CafeCreateDB(BaseModel):
     address: str
     phone: PhoneStr
     description: Optional[str] = None
-    photo_id: UUID
+    photo_id: Optional[UUID]

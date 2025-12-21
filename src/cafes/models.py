@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from sqlalchemy import (
     Column,
@@ -18,7 +18,6 @@ from sqlalchemy.orm import (
     relationship,
 )
 
-# from src.media.models import ImageMedia
 from src.booking.models import Booking
 from src.config import (
     MAX_ADDRESS_LENGTH,
@@ -27,7 +26,15 @@ from src.config import (
     MAX_PHONE_LENGTH,
 )
 from src.database import Base
+from src.dishes.models import Dish
+
+# from src.media.models import ImageMedia
 from src.users.models import User, UserRole
+
+
+if TYPE_CHECKING:
+    from src.slots.models import Slot
+    from src.tables.models import Table
 
 
 #  Ассоциативная таблица для связи "многие к многим" моделей User и Cafe.
@@ -60,10 +67,6 @@ class Cafe(Base):
 
     Ограничения:
         - Уникальность полей name, address и phone на уровне БД.
-        - Внешние ключи с ondelete='CASCADE' для cafes_managers.cafe_id,
-          slots.cafe_id и tables.cafe_id, обеспечивающие каскадное удаление
-          связанных записей при удалении кафе.
-
     """
 
     name: Mapped[str] = mapped_column(
@@ -95,9 +98,25 @@ class Cafe(Base):
         viewonly=True,
         overlaps='managed_cafes, cafes',
     )
-    # Связи
+
+    #  Связи
     bookings: Mapped[list['Booking']] = relationship(
         'Booking',
+        back_populates='cafe',
+        lazy='selectin',
+    )
+    dishes: Mapped[list['Dish']] = relationship(
+        'Dish',
+        secondary='dishes_cafes',
+        back_populates='cafes',
+    )
+    tables: Mapped[list['Table']] = relationship(
+        'Table',
+        back_populates='cafe',
+        lazy='selectin',
+    )
+    slots: Mapped[list['Slot']] = relationship(
+        'Slot',
         back_populates='cafe',
         lazy='selectin',
     )

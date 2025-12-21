@@ -1,8 +1,8 @@
 """initial
 
-Revision ID: 25a816cf4e42
+Revision ID: d47ccebe0f28
 Revises:
-Create Date: 2025-12-17 03:05:02.101774
+Create Date: 2025-12-21 00:36:54.359716
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '25a816cf4e42'
+revision: str = 'd47ccebe0f28'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -27,14 +27,14 @@ def upgrade() -> None:
     sa.Column('phone', sa.String(length=32), nullable=False),
     sa.Column('description', sa.String(length=500), nullable=True),
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
     sa.Column('active', sa.Boolean(), nullable=False),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('address'),
-    sa.UniqueConstraint('name'),
+    sa.UniqueConstraint('name', 'address', name='uq_cafe_name_address'),
     sa.UniqueConstraint('phone')
     )
+    op.create_index('idx_cafe_name', 'cafe', ['name'], unique=False)
     op.create_index(op.f('ix_cafe_active'), 'cafe', ['active'], unique=False)
     op.create_table('dish',
     sa.Column('name', sa.String(length=100), nullable=False),
@@ -42,8 +42,8 @@ def upgrade() -> None:
     sa.Column('photo_id', sa.UUID(), nullable=True),
     sa.Column('price', sa.Numeric(precision=10, scale=2), nullable=False),
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
     sa.Column('active', sa.Boolean(), nullable=False),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('name')
@@ -57,8 +57,8 @@ def upgrade() -> None:
     sa.Column('role', sa.Integer(), nullable=False),
     sa.Column('hashed_password', sa.String(length=255), nullable=False),
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
     sa.Column('active', sa.Boolean(), nullable=False),
     sa.CheckConstraint('email IS NOT NULL OR phone IS NOT NULL', name='check_email_or_phone_not_null'),
     sa.PrimaryKeyConstraint('id'),
@@ -76,8 +76,8 @@ def upgrade() -> None:
     sa.Column('note', sa.String(length=255), nullable=False, comment='Примечание к брони'),
     sa.Column('status', sa.Enum('BOOKING', 'CANCELED', 'ACTIVE', 'COMPLETED', name='booking_status'), nullable=False, comment='Статус брони'),
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
     sa.Column('active', sa.Boolean(), nullable=False),
     sa.ForeignKeyConstraint(['cafe_id'], ['cafe.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
@@ -89,29 +89,29 @@ def upgrade() -> None:
     op.create_table('cafes_managers',
     sa.Column('cafe_id', sa.UUID(), nullable=False),
     sa.Column('user_id', sa.UUID(), nullable=False),
-    sa.ForeignKeyConstraint(['cafe_id'], ['cafe.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['user_id'], ['user.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['cafe_id'], ['cafe.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('cafe_id', 'user_id')
     )
     op.create_table('dishes_cafes',
     sa.Column('dish_id', sa.UUID(), nullable=False),
     sa.Column('cafe_id', sa.UUID(), nullable=False),
-    sa.ForeignKeyConstraint(['cafe_id'], ['cafe.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['dish_id'], ['dish.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['cafe_id'], ['cafe.id'], ),
+    sa.ForeignKeyConstraint(['dish_id'], ['dish.id'], ),
     sa.PrimaryKeyConstraint('dish_id', 'cafe_id')
     )
     op.create_table('slot',
     sa.Column('cafe_id', sa.UUID(), nullable=False),
     sa.Column('start_time', sa.Time(), nullable=False),
     sa.Column('end_time', sa.Time(), nullable=False),
+    sa.Column('description', sa.String(length=500), nullable=True),
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
     sa.Column('active', sa.Boolean(), nullable=False),
     sa.CheckConstraint('start_time < end_time', name='slot_start_before_end'),
-    sa.ForeignKeyConstraint(['cafe_id'], ['cafe.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('cafe_id')
+    sa.ForeignKeyConstraint(['cafe_id'], ['cafe.id'], ),
+    sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_slot_active'), 'slot', ['active'], unique=False)
     op.create_table('table',
@@ -119,11 +119,11 @@ def upgrade() -> None:
     sa.Column('count_place', sa.Integer(), nullable=False),
     sa.Column('description', sa.String(length=500), nullable=True),
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
     sa.Column('active', sa.Boolean(), nullable=False),
     sa.CheckConstraint('count_place > 0 and count_place <= 20', name='table_places_range'),
-    sa.ForeignKeyConstraint(['cafe_id'], ['cafe.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['cafe_id'], ['cafe.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_table_active'), 'table', ['active'], unique=False)
@@ -133,8 +133,8 @@ def upgrade() -> None:
     sa.Column('slot_id', sa.UUID(), nullable=False, comment='Ссылка на временной слот'),
     sa.Column('booking_date', sa.Date(), nullable=False, comment='Дата брони (копия из Booking, для уникальности стол+слот+дата)'),
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
     sa.Column('active', sa.Boolean(), nullable=False),
     sa.ForeignKeyConstraint(['booking_id'], ['booking.id'], ),
     sa.ForeignKeyConstraint(['slot_id'], ['slot.id'], ),
@@ -171,5 +171,6 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_dish_active'), table_name='dish')
     op.drop_table('dish')
     op.drop_index(op.f('ix_cafe_active'), table_name='cafe')
+    op.drop_index('idx_cafe_name', table_name='cafe')
     op.drop_table('cafe')
     # ### end Alembic commands ###
