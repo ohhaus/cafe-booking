@@ -9,6 +9,7 @@ from sqlalchemy.orm import (
     relationship,
 )
 
+from src.booking import BookingTableSlot
 from src.config import MAX_DESCRIPTION_LENGTH
 from src.database import Base
 
@@ -50,6 +51,12 @@ class Table(Base):
     description: Mapped[Optional[str]] = mapped_column(
         String(MAX_DESCRIPTION_LENGTH),
         nullable=True,
+    )
+    # Связи
+    booking_table_slots: Mapped[List['BookingTableSlot']] = relationship(
+        back_populates='table',
+        uselist=True,
+        lazy='selectin',
     )
 
     #  Связи

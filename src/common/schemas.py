@@ -13,6 +13,15 @@ class BaseRead(BaseModel):
     id: UUID
     created_at: datetime
     updated_at: datetime
-    is_active: bool
+    active: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CustomErrorResponse(BaseModel):
+    """Схема для пользовательских ошибок."""
+
+    code: int
+    message: str
 
     model_config = ConfigDict(from_attributes=True)

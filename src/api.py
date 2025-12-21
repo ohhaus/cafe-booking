@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from src.auth.views import router as auth_router
 from src.booking.views import router as booking_router
 from src.cafes.views import router as cafe_router
 from src.slots.views import router as slot_router
@@ -14,3 +15,4 @@ main_router.include_router(cafe_router)
 main_router.include_router(slot_router)
 main_router.include_router(table_router)
 main_router.include_router(booking_router)
+main_router.include_router(dishes_router)

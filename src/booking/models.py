@@ -92,7 +92,6 @@ class Booking(Base):
         back_populates='booking',
         uselist=True,
         lazy='selectin',
-        cascade='all',
     )
 
     __table_args__ = (

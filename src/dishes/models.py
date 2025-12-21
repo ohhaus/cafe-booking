@@ -20,13 +20,13 @@ dish_cafe = Table(
     Column(
         'dish_id',
         UUID(as_uuid=True),
-        ForeignKey('dish.id', ondelete='CASCADE'),
+        ForeignKey('dish.id'),
         primary_key=True,
     ),
     Column(
         'cafe_id',
         UUID(as_uuid=True),
-        ForeignKey('cafe.id', ondelete='CASCADE'),
+        ForeignKey('cafe.id'),
         primary_key=True,
     ),
 )
@@ -58,6 +58,8 @@ class Dish(Base):
         Numeric(10, 2),
         nullable=False,
     )
+
+    # Связь многие-ко-многим с Cafe
     cafes: Mapped[list['Cafe']] = relationship(
         'Cafe',
         secondary=dish_cafe,
