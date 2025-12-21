@@ -11,7 +11,7 @@ from src.config import MAX_DESCRIPTION_LENGTH
 
 
 class TimeSlotBase(BaseModel):
-    """Общие поля для стлота бронирования."""
+    """Общие поля для слота бронирования."""
 
     start_time: time = Field(
         ...,
@@ -97,14 +97,17 @@ class TimeSlotUpdate(BaseModel):
         max_length=MAX_DESCRIPTION_LENGTH,
         description='Описание слота',
     )
-    is_active: Optional[bool] = None
+    active: Optional[bool] = Field(
+        default=None,
+        alias='is_active',
+    )
 
     model_config = ConfigDict(extra='forbid')
 
     @model_validator(mode='after')
     def forbid_nulls(self) -> Self:
         """Запрещаем явные null в обновлении."""
-        for field in ('start_time', 'end_time', 'description', 'is_active'):
+        for field in ('start_time', 'end_time', 'description', 'active'):
             if field in self.model_fields_set and getattr(self, field) is None:
                 raise ValueError(f'Поле {field} не может быть null')
         return self

@@ -1,4 +1,10 @@
+from typing import Optional
+from uuid import UUID
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from sqlalchemy.sql import Select
 
 from src.cafes.models import Cafe
 from src.cafes.schemas import CafeCreate, CafeCreateDB, CafeUpdate
@@ -23,23 +29,39 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
         """Инициализирует сервис и привязывает его к модели Cafe."""
         super().__init__(Cafe)
 
+    def _stmt_with_managers(self) -> Select[tuple[Cafe]]:
+        """Строит SELECT для кафе с предзагрузкой менеджеров."""
+        return select(Cafe).options(selectinload(Cafe.managers))
+
+    async def _get_with_managers_by_id(
+        self,
+        session: AsyncSession,
+        cafe_id: UUID,
+    ) -> Optional[Cafe]:
+        """Получает кафе по ID вместе со списком менеджеров.
+
+        Возвращает None, если кафе не найдено.
+        """
+        result = await session.execute(
+            self._stmt_with_managers().where(
+                Cafe.id == cafe_id,
+            ),
+        )
+        return result.scalars().one()
+
     async def create_cafe(
         self,
         session: AsyncSession,
         cafe_in: CafeCreate,
     ) -> Cafe:
-        """Создаёт кафе и синхронизирует список менеджеров.
-
-        Алгоритм:
-        1) Извлекает managers_id из входной схемы.
-        2) Создаёт Cafe через базовый CRUD без commit.
-        3) Делает flush, чтобы получить идентификатор созданного кафе.
-        4) Если переданы managers_id — синхронизирует связи менеджеров.
-        5) Выполняет commit и refresh и возвращает объект Cafe.
-        """
+        """Создаёт кафе и синхронизирует список менеджеров."""
         managers_ids = cafe_in.managers_id
 
-        cafe_db = CafeCreateDB(**cafe_in.model_dump(exclude={'managers_id'}))
+        payload = cafe_in.model_dump(exclude={'managers_id'})
+        if payload.get('phone') is not None:
+            payload['phone'] = str(payload['phone'])
+
+        cafe_db = CafeCreateDB(**payload)
 
         cafe = await super().create(session, obj_in=cafe_db, commit=False)
         await session.flush()
@@ -48,8 +70,7 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
             await sync_cafe_managers(session, cafe, managers_ids)
 
         await session.commit()
-        await session.refresh(cafe)
-        return cafe
+        return await self._get_with_managers_by_id(session, cafe.id)
 
     async def update_cafe(
         self,
@@ -57,17 +78,7 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
         cafe: Cafe,
         cafe_in: CafeUpdate,
     ) -> Cafe:
-        """Обновляет кафе и при необходимости синхронизирует менеджеров.
-
-        Алгоритм:
-          1) Собирает payload только из переданных полей (exclude_unset=True).
-          2) Извлекает managers_id из payload (если ключ присутствует).
-          3) Нормализует phone к строке, если значение задано.
-          4) Обновляет Cafe через базовый CRUD без commit.
-          5) Если managers_id был передан (даже пустым списком) —
-             синхронизирует связи менеджеров.
-          6) Выполняет commit и refresh и возвращает объект Cafe.
-        """
+        """Обновляет кафе и при необходимости синхронизирует менеджеров."""
         payload = cafe_in.model_dump(exclude_unset=True)
 
         managers_ids = payload.pop('managers_id', None)
@@ -86,5 +97,35 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
             await sync_cafe_managers(session, cafe, managers_ids)
 
         await session.commit()
-        await session.refresh(cafe)
-        return cafe
+        return await self._get_with_managers_by_id(session, cafe.id)
+
+    async def get_list_cafe(
+        self,
+        session: AsyncSession,
+        *,
+        include_inactive: bool,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[Cafe]:
+        """Получение списка кафе."""
+        stmt = self._stmt_with_managers().offset(skip).limit(limit)
+        if not include_inactive:
+            stmt = stmt.where(Cafe.active.is_(True))
+
+        result = await session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_cafe_by_id(
+        self,
+        session: AsyncSession,
+        *,
+        cafe_id: UUID,
+        include_inactive: bool,
+    ) -> Optional[Cafe]:
+        """Получение кафе по его ID."""
+        stmt = self._stmt_with_managers().where(Cafe.id == cafe_id)
+        if not include_inactive:
+            stmt = stmt.where(Cafe.active.is_(True))
+
+        result = await session.execute(stmt)
+        return result.scalars().first()

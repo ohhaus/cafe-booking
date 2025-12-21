@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional, TYPE_CHECKING
 import uuid
 
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, String
@@ -12,6 +12,10 @@ from sqlalchemy.orm import (
 from src.booking import BookingTableSlot
 from src.config import MAX_DESCRIPTION_LENGTH
 from src.database import Base
+
+
+if TYPE_CHECKING:
+    from src.cafes.models import Cafe
 
 
 class Table(Base):
@@ -49,9 +53,14 @@ class Table(Base):
         nullable=True,
     )
     # Связи
-    booking_table_slots: Mapped[List['BookingTableSlot']] = relationship(
+    booking_table_slots: Mapped[list['BookingTableSlot']] = relationship(
         back_populates='table',
         uselist=True,
+        lazy='selectin',
+    )
+    cafe: Mapped['Cafe'] = relationship(
+        'Cafe',
+        back_populates='tables',
         lazy='selectin',
     )
 

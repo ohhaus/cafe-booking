@@ -9,6 +9,11 @@ from src.cafes.models import Cafe, cafes_managers
 from src.users.models import User, UserRole
 
 
+def is_admin_or_manager(user: User) -> bool:
+    """Проверка на менеджера и админа."""
+    return user.role in (UserRole.ADMIN, UserRole.MANAGER)
+
+
 def manager_conditions(
     ids: set[UUID],
 ) -> tuple[ColumnElement[bool], ...]:

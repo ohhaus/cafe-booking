@@ -1,5 +1,6 @@
 import re
 from typing import Annotated, Self
+from uuid import UUID
 
 from pydantic import (
     BaseModel,
@@ -144,7 +145,7 @@ class UserRead(BaseRead, BaseUser, RoleMixin):
 class UserReadView(BaseUser):
     """Схема для представления пользователя в выводе кафе и бронирования."""
 
-    id: int
+    id: UUID
     username: UsernameStr
 
 
