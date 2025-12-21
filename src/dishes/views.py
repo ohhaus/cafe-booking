@@ -19,26 +19,23 @@ from src.users.dependencies import require_roles
 from src.users.models import User
 
 
-router = APIRouter(
-    prefix='/dishes',
-    tags=['Блюда'],
-)
+router = APIRouter()
 
 
 logger = logging.getLogger('app')
 
 
 @router.get(
-        '/',
-        response_model=List[DishInfo],
-        summary='Получение списка блюд',
-        description=(
-            'Получение списка блюд. '
-            'Для администраторов и менеджеров - '
-            'все блюда (с возможностью выбора),'
-            ' для пользователей - только активные.'
-            ),
-        responses=DISH_GET_RESPONSES,
+    '/',
+    response_model=List[DishInfo],
+    summary='Получение списка блюд',
+    description=(
+        'Получение списка блюд. '
+        'Для администраторов и менеджеров - '
+        'все блюда (с возможностью выбора),'
+        ' для пользователей - только активные.'
+    ),
+    responses=DISH_GET_RESPONSES,
 )
 async def get_dishes(
     show_all: bool = Query(
@@ -69,8 +66,10 @@ async def get_dishes(
         )
 
         if not dishes:
-            logger.info('Нет блюд для кафе %s',
-                        str(cafe_id) if cafe_id else 'всех кафе')
+            logger.info(
+                'Нет блюд для кафе %s',
+                str(cafe_id) if cafe_id else 'всех кафе',
+            )
 
         logger.info(
             'Найдено %d блюд для кафе %s',
@@ -105,14 +104,14 @@ async def get_dishes(
 
 
 @router.post(
-        '/',
-        response_model=DishInfo,
-        status_code=status.HTTP_201_CREATED,
-        summary='Создание нового блюда',
-        description=(
-            'Cоздает новое блюда. Только для администраторов и менеджеров.'
-            ),
-        responses=DISH_CREATE_RESPONSES,
+    '/',
+    response_model=DishInfo,
+    status_code=status.HTTP_201_CREATED,
+    summary='Создание нового блюда',
+    description=(
+        'Cоздает новое блюда. Только для администраторов и менеджеров.'
+    ),
+    responses=DISH_CREATE_RESPONSES,
 )
 async def create_dish(
     dish_in: DishCreate,
@@ -178,19 +177,20 @@ async def get_dish_by_id(
             logger.info('Блюдо с ID %d не найдено', dish_id)
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Данные не найдены",
-                )
+                detail='Данные не найдены',
+            )
 
         # Если пользователь не является администратором или менеджером,
         # проверяем статус блюда
         if not is_staff and not dish.is_active:
-            logger.info('Доступ к неактивному блюду для пользователя с ID %d',
-                        current_user.id,
-                        )
+            logger.info(
+                'Доступ к неактивному блюду для пользователя с ID %d',
+                current_user.id,
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Доступ запрещен",
-                )
+                detail='Доступ запрещен',
+            )
 
         return dish
 
@@ -200,8 +200,8 @@ async def get_dish_by_id(
         logger.error('Ошибка при получении блюда: %s', str(e))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ошибка в параметрах запроса",
-            )
+            detail='Ошибка в параметрах запроса',
+        )
 
 
 @router.patch(
@@ -209,7 +209,7 @@ async def get_dish_by_id(
     response_model=DishInfo,
     summary='Обновление информации о блюде по его ID',
     description='Обновление информации о блюде по его ID. '
-                'Только для администраторов и менеджеров.',
+    'Только для администраторов и менеджеров.',
     responses=DISH_GET_BY_ID_RESPONSES,
 )
 async def update_dish(
@@ -227,10 +227,12 @@ async def update_dish(
         if not is_staff:
             logger.info(
                 'Пользователь с ID %d не имеет прав для обновления блюда',
-                current_user.id)
+                current_user.id,
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Доступ запрещен")
+                detail='Доступ запрещен',
+            )
 
         # Проверяем, существует ли блюдо
         await check_exists_dish(dish_id, session)
@@ -238,9 +240,7 @@ async def update_dish(
         dish = await crud.get(dish_id)
 
         # Обновляем данные блюда
-        update_dish = await crud.update_dish(
-            dish,
-            dish_update=dish_update)
+        update_dish = await crud.update_dish(dish, dish_update=dish_update)
         return DishInfo.model_validate(update_dish)
 
     except HTTPException as e:
@@ -249,4 +249,5 @@ async def update_dish(
         logger.error('Ошибка при обновлении блюда: %s', str(e))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ошибка в параметрах запроса")
+            detail='Ошибка в параметрах запроса',
+        )

@@ -27,10 +27,7 @@ from src.users.dependencies import require_roles
 from src.users.models import User, UserRole
 
 
-router = APIRouter(
-    prefix='/booking',
-    tags=['Бронирования'],
-)
+router = APIRouter()
 
 logger = logging.getLogger('app')
 

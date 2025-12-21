@@ -1,0 +1,607 @@
+import asyncio
+import logging
+from typing import Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import DatabaseError, IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.cafes.service import is_admin_or_manager
+from src.database.sessions import get_async_session
+from src.tables.crud import TableService
+from src.tables.schemas import (
+    TableCreate,
+    TableUpdate,
+    TableWithCafeInfo,
+)
+from src.users.dependencies import require_roles
+from src.users.models import User, UserRole
+
+
+router = APIRouter(
+    prefix='/cafe',
+    tags=['Столы'],
+)
+
+logger = logging.getLogger('app')
+
+
+@router.get(
+    '/{cafe_id}/tables',
+    response_model=list[TableWithCafeInfo],
+    response_model_by_alias=True,
+    summary='Получение списка столов в кафе',
+    description=(
+        'Получение списка доступных для бронирования столов в кафе. '
+        'Для администраторов и менеджеров - все столы '
+        '(с возможностью выбора), для пользователей - только активные.'
+    ),
+    responses={
+        200: {'description': 'Успешно'},
+        401: {'description': 'Неавторизированный пользователь'},
+        404: {'description': 'Данные не найдены'},
+        422: {'description': 'Ошибка валидации данных'},
+    },
+)
+async def get_tables(
+    cafe_id: UUID,
+    show_all: Optional[bool] = Query(
+        None,
+        title='Показывать все столы?',
+        description='Показывать все столы в кафе или нет.',
+    ),
+    current_user: User = Depends(require_roles(allow_guest=False)),
+    db: AsyncSession = Depends(get_async_session),
+) -> list[TableWithCafeInfo]:
+    """Получение списка доступных для бронирования столов в кафе.
+
+    Для администраторов и менеджеров - все столы (с возможностью выбора),
+    для пользователей - только активные.
+    """
+    try:
+        crud = TableService()
+
+        cafe = await TableService._get_cafe_or_none(db, cafe_id)
+        if not cafe:
+            logger.warning(
+                'Кафе %s не найдено при получении списка столов',
+                cafe_id,
+                extra={
+                    'user_id': str(current_user.id),
+                    'cafe_id': str(cafe_id),
+                },
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail='Кафе не найдено.',
+            )
+
+        privileged = is_admin_or_manager(current_user)
+        include_all = (
+            (True if show_all is None else show_all) if privileged else False
+        )
+
+        tables = await crud.list_tables(
+            db,
+            current_user=current_user,
+            cafe_id=cafe_id,
+            show_all=include_all,
+        )
+
+        logger.info(
+            'GET /cafe/%s/tables: найдено %d (include_all=%s, show_all=%s)',
+            cafe_id,
+            len(tables),
+            include_all,
+            show_all,
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+            },
+        )
+
+        return [TableWithCafeInfo.model_validate(table) for table in tables]
+    except asyncio.CancelledError:
+        raise
+
+    except HTTPException:
+        raise
+
+    except DatabaseError as e:
+        await db.rollback()
+        logger.error(
+            'Ошибка базы данных при получении списка столов (cafe=%s): %s',
+            cafe_id,
+            str(e),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Временная ошибка базы данных. Попробуйте позже.',
+        ) from e
+
+    except Exception as e:
+        await db.rollback()
+        logger.critical(
+            'Неожиданная ошибка при получении списка столов (cafe=%s): %s',
+            cafe_id,
+            str(e),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+            },
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Внутренняя ошибка сервера.',
+        ) from e
+
+
+@router.post(
+    '/{cafe_id}/tables',
+    response_model=TableWithCafeInfo,
+    response_model_by_alias=True,
+    status_code=status.HTTP_201_CREATED,
+    summary='Создание нового стола в кафе',
+    responses={
+        201: {'description': 'Успешно'},
+        400: {'description': 'Ошибка в параметрах запроса'},
+        401: {'description': 'Неавторизированный пользователь'},
+        403: {'description': 'Доступ запрещен'},
+        404: {'description': 'Данные не найдены'},
+        422: {'description': 'Ошибка валидации данных'},
+    },
+)
+async def create_table(
+    cafe_id: UUID,
+    table_data: TableCreate,
+    current_user: User = Depends(
+        require_roles(allowed_roles=[UserRole.MANAGER, UserRole.ADMIN]),
+    ),
+    db: AsyncSession = Depends(get_async_session),
+) -> TableWithCafeInfo:
+    """Создает новое стола кафе.
+
+    Только для администраторов и менеджеров.
+    """
+    logger.info(
+        'Пользователь %s инициализировал создание стола '
+        '(cafe=%s, seat_number=%s)',
+        current_user.id,
+        cafe_id,
+        getattr(table_data, 'count_place', None),
+        extra={
+            'user_id': str(current_user.id),
+            'cafe_id': str(cafe_id),
+        },
+    )
+
+    try:
+        crud = TableService()
+        table = await crud.create_table(
+            db,
+            current_user=current_user,
+            cafe_id=cafe_id,
+            data=table_data,
+        )
+        table = await crud.get_table(
+            db,
+            current_user=current_user,
+            cafe_id=cafe_id,
+            table_id=table.id,
+        )
+        if table is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail='Не удалось получить созданный стол.',
+            )
+
+        logger.info(
+            'Стол %s успешно создан (cafe=%s)',
+            table.id,
+            cafe_id,
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+                'table_id': str(table.id),
+            },
+        )
+        return TableWithCafeInfo.model_validate(table)
+
+    except asyncio.CancelledError:
+        raise
+
+    except ValueError as e:
+        await db.rollback()
+        logger.warning(
+            'Ошибка валидации при создании стола (cafe=%s): %s',
+            cafe_id,
+            str(e),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        ) from e
+
+    except PermissionError as e:
+        await db.rollback()
+        logger.warning(
+            'Доступ запрещен при создании стола (cafe=%s): %s',
+            cafe_id,
+            str(e),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e),
+        ) from e
+
+    except LookupError as e:
+        await db.rollback()
+        logger.warning(
+            'Кафе не найдено при создании стола (cafe=%s): %s',
+            cafe_id,
+            str(e),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
+
+    except IntegrityError as e:
+        await db.rollback()
+        logger.error(
+            'Ошибка целостности данных при создании стола (cafe=%s): %s',
+            cafe_id,
+            str(e),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+            },
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail='Конфликт данных или нарушение ограничений.',
+        ) from e
+
+    except DatabaseError as e:
+        await db.rollback()
+        logger.error(
+            'Ошибка базы данных при создании стола (cafe=%s): %s',
+            cafe_id,
+            str(e),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Временная ошибка базы данных. Попробуйте позже.',
+        ) from e
+
+    except HTTPException as e:
+        logger.warning(
+            'HTTP ошибка при создании стола (cafe=%s): %s',
+            cafe_id,
+            e.detail,
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+            },
+        )
+        raise
+
+    except Exception as e:
+        await db.rollback()
+        logger.critical(
+            'Неожиданная ошибка при создании стола (cafe=%s): %s',
+            cafe_id,
+            str(e),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+            },
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Внутренняя ошибка сервера.',
+        ) from e
+
+
+@router.get(
+    '/{cafe_id}/tables/{table_id}',
+    response_model=TableWithCafeInfo,
+    response_model_by_alias=True,
+    summary='Получение информации о столе по ID',
+    responses={
+        200: {'description': 'Успешно'},
+        401: {'description': 'Неавторизированный пользователь'},
+        403: {'description': 'Доступ запрещен'},
+        404: {'description': 'Данные не найдены'},
+        422: {'description': 'Ошибка валидации данных'},
+    },
+)
+async def get_table_by_id(
+    cafe_id: UUID,
+    table_id: UUID,
+    current_user: User = Depends(require_roles(allow_guest=False)),
+    db: AsyncSession = Depends(get_async_session),
+) -> TableWithCafeInfo:
+    """Получение информации о столе в кафе по его ID.
+
+    Для администраторов и менеджеров - все столы,
+    для пользователей - только активные.
+    """
+    try:
+        crud = TableService()
+
+        logger.info(
+            'Пользователь %s запрашивает стол %s (cafe=%s)',
+            current_user.id,
+            table_id,
+            cafe_id,
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+                'table_id': str(table_id),
+            },
+        )
+
+        table = await crud.get_table(
+            db,
+            current_user=current_user,
+            cafe_id=cafe_id,
+            table_id=table_id,
+        )
+        if not table:
+            logger.warning(
+                'Стол %s не найден (cafe=%s)',
+                table_id,
+                cafe_id,
+                extra={
+                    'user_id': str(current_user.id),
+                    'cafe_id': str(cafe_id),
+                    'table_id': str(table_id),
+                },
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail='Стол не найден.',
+            )
+
+        return TableWithCafeInfo.model_validate(table)
+
+    except asyncio.CancelledError:
+        raise
+
+    except HTTPException:
+        raise
+
+    except DatabaseError as e:
+        await db.rollback()
+        logger.error(
+            'Ошибка базы данных при получении стола (cafe=%s, table=%s): %s',
+            cafe_id,
+            table_id,
+            str(e),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+                'table_id': str(table_id),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Временная ошибка базы данных. Попробуйте позже.',
+        ) from e
+
+    except Exception as e:
+        await db.rollback()
+        logger.critical(
+            'Неожиданная ошибка при получении стола (cafe=%s, table=%s): %s',
+            cafe_id,
+            table_id,
+            str(e),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+                'table_id': str(table_id),
+            },
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Внутренняя ошибка сервера.',
+        ) from e
+
+
+@router.patch(
+    '/{cafe_id}/tables/{table_id}',
+    response_model=TableWithCafeInfo,
+    response_model_by_alias=True,
+    summary='Обновление информации о столе по ID',
+    responses={
+        200: {'description': 'Успешно'},
+        400: {'description': 'Ошибка в параметрах запроса'},
+        401: {'description': 'Неавторизированный пользователь'},
+        403: {'description': 'Доступ запрещен'},
+        404: {'description': 'Данные не найдены'},
+        422: {'description': 'Ошибка валидации данных'},
+    },
+)
+async def update_table(
+    cafe_id: UUID,
+    table_id: UUID,
+    table_data: TableUpdate,
+    current_user: User = Depends(
+        require_roles(allowed_roles=[UserRole.MANAGER, UserRole.ADMIN]),
+    ),
+    db: AsyncSession = Depends(get_async_session),
+) -> TableWithCafeInfo:
+    """Обновление информации о столе в кафе по его ID.
+
+    Только для администраторов и менеджеров.
+    """
+    try:
+        crud = TableService()
+
+        logger.info(
+            'Пользователь %s обновляет стол %s (cafe=%s, fields=%s)',
+            current_user.id,
+            table_id,
+            cafe_id,
+            sorted(table_data.model_fields_set),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+                'table_id': str(table_id),
+            },
+        )
+
+        table = await crud.update_table(
+            db,
+            current_user=current_user,
+            cafe_id=cafe_id,
+            table_id=table_id,
+            data=table_data,
+        )
+        if table is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail='Стол не найден.',
+            )
+
+        logger.info(
+            'Стол %s успешно обновлён (cafe=%s)',
+            table.id,
+            cafe_id,
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+                'table_id': str(table.id),
+            },
+        )
+
+        return TableWithCafeInfo.model_validate(table)
+
+    except asyncio.CancelledError:
+        raise
+
+    except ValueError as e:
+        await db.rollback()
+        logger.error(
+            'PATCH table %s ValueError: %s',
+            table_id,
+            str(e),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+                'table_id': str(table_id),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        ) from e
+
+    except PermissionError as e:
+        await db.rollback()
+        logger.warning(
+            'PATCH table %s Forbidden: %s',
+            table_id,
+            str(e),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+                'table_id': str(table_id),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e),
+        ) from e
+
+    except HTTPException as e:
+        logger.warning(
+            'PATCH table %s HTTPException: %s',
+            table_id,
+            e.detail,
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+                'table_id': str(table_id),
+            },
+        )
+        raise
+
+    except IntegrityError as e:
+        await db.rollback()
+        logger.error(
+            'PATCH table %s IntegrityError: %s',
+            table_id,
+            str(e),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+                'table_id': str(table_id),
+            },
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail='Конфликт данных или нарушение ограничений.',
+        ) from e
+
+    except DatabaseError as e:
+        await db.rollback()
+        logger.error(
+            'PATCH table %s DatabaseError: %s',
+            table_id,
+            str(e),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+                'table_id': str(table_id),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Временная ошибка базы данных. Попробуйте позже.',
+        ) from e
+
+    except Exception as e:
+        await db.rollback()
+        logger.critical(
+            'PATCH table %s Unexpected error: %s',
+            table_id,
+            str(e),
+            extra={
+                'user_id': str(current_user.id),
+                'cafe_id': str(cafe_id),
+                'table_id': str(table_id),
+            },
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Внутренняя ошибка сервера.',
+        ) from e

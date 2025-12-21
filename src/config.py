@@ -1,3 +1,4 @@
+from pathlib import Path
 import secrets
 
 from pydantic import Field
@@ -78,3 +79,10 @@ MAX_TG_LENGTH = 64
 BYTES_IN_MB = 1024**2
 VALUE_MEMORIE_FILE_MB = 5
 COUNT_FILES, MAX_BYTES = 10, BYTES_IN_MB * VALUE_MEMORIE_FILE_MB
+
+MAX_FILE_SIZE_MB = 5
+MAX_FILE_SIZE = MAX_FILE_SIZE_MB * BYTES_IN_MB
+ALLOWED_IMAGE_MIME_TYPES = {"image/jpeg", "image/png"}
+BASE_DIR = Path(__file__).resolve().parent.parent
+MEDIA_DIR = BASE_DIR / 'media' / 'images'
+MEDIA_DIR.mkdir(parents=True, exist_ok=True)

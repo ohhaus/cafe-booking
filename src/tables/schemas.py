@@ -18,16 +18,18 @@ class TableBase(BaseModel):
         max_length=MAX_DESCRIPTION_LENGTH,
         description='Описание стола',
     )
-    seat_number: int = Field(
+    count_place: int = Field(
         ...,
         ge=1,
         le=20,
         description='Количество мест за столом',
-        # Стыкаовка с моделью, в модели поле называется count_place
-        validation_alias='count_place',
+        alias='seat_number',
     )
 
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(
+        extra='forbid',
+        populate_by_name=True,
+    )
 
 
 class TableCreate(TableBase):
@@ -41,14 +43,17 @@ class TableInfo(TableBase):
 
     id: UUID
     is_active: bool = Field(
-        # Стыкаовка с моделью, в модели поле называется active
         validation_alias='active',
         description='Активен ли стол',
     )
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(from_attributes=True, extra='forbid')
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra='forbid',
+        populate_by_name=True,
+    )
 
 
 class TableWithCafeInfo(TableInfo):
@@ -62,7 +67,11 @@ class TableShortInfo(TableBase):
 
     id: UUID
 
-    model_config = ConfigDict(from_attributes=True, extra='forbid')
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra='forbid',
+        populate_by_name=True,
+    )
 
 
 class TableUpdate(BaseModel):
@@ -73,20 +82,24 @@ class TableUpdate(BaseModel):
         max_length=MAX_DESCRIPTION_LENGTH,
         description='Описание стола',
     )
-    seat_number: Optional[int] = Field(
+    count_place: Optional[int] = Field(
         default=None,
         ge=1,
         le=20,
         description='Количество мест за столом (1–20)',
+        alias='seat_number',
     )
-    is_active: Optional[bool] = None
+    active: Optional[bool] = Field(
+        default=None,
+        alias='is_active',
+    )
 
     model_config = ConfigDict(extra='forbid')
 
     @model_validator(mode='after')
     def forbid_nulls(self) -> Self:
         """Запрет явного null в обновлении."""
-        for field in ('description', 'seat_number', 'is_active'):
-            if field in self.model_fields_set and getattr(self, field) is None:
+        for field in self.model_fields_set:
+            if getattr(self, field) is None:
                 raise ValueError(f'Поле {field} не может быть null')
         return self
