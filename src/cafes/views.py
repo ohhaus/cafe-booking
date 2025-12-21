@@ -15,10 +15,7 @@ from src.users.dependencies import require_roles
 from src.users.models import User, UserRole
 
 
-router = APIRouter(
-    prefix='/cafe',
-    tags=['Кафе'],
-)
+router = APIRouter()
 
 logger = logging.getLogger('app')
 
