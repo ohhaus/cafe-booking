@@ -27,7 +27,7 @@ logger = logging.getLogger('app')
     '',
     response_model=CafeInfo,
     status_code=status.HTTP_201_CREATED,
-    summary='Созданик нового кафе.',
+    summary='Создание нового кафе.',
     responses={
         201: {'description': 'Успешно'},
         400: {'description': 'Ошибка в параметрах запроса'},
