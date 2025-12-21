@@ -107,8 +107,8 @@ class TimeSlotUpdate(BaseModel):
     @model_validator(mode='after')
     def forbid_nulls(self) -> Self:
         """Запрещаем явные null в обновлении."""
-        for field in ('start_time', 'end_time', 'description', 'active'):
-            if field in self.model_fields_set and getattr(self, field) is None:
+        for field in self.model_fields_set:
+            if getattr(self, field) is None:
                 raise ValueError(f'Поле {field} не может быть null')
         return self
 
