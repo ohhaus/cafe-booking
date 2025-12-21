@@ -9,7 +9,7 @@ from src.users.views import router as user_router
 
 main_router = APIRouter()
 
-main_router.include_router(user_router, prefix='/users')
+main_router.include_router(user_router)
 main_router.include_router(cafe_router)
 main_router.include_router(slot_router)
 main_router.include_router(table_router)
