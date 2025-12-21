@@ -8,14 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.service import DatabaseService
 from src.slots.models import Slot
 from src.slots.schemas import TimeSlotCreate, TimeSlotCreateDB, TimeSlotUpdate
-from src.slots.slot_and_table_helpers import (
+from src.slots.utils import (
     apply_visibility_filters,
     cafe_scoped_stmt,
+    get_cafe_or_none,
     rename_payload_key,
     require_staff,
     with_id,
 )
-from src.slots.utils import get_cafe_or_none
 from src.users.models import User
 
 

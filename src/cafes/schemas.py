@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, Self, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.config import (
     MAX_ADDRESS_LENGTH,
@@ -68,7 +68,7 @@ class CafeInfo(CafeBase):
         default_factory=list,
         description='Менеджеры кафе',
     )
-    active: bool = Field(validation_alias='active')
+    is_active: bool = Field(validation_alias='active')
     created_at: datetime
     updated_at: datetime
 
@@ -92,9 +92,9 @@ class CafeUpdate(BaseModel):
     description: str | None = None
     photo_id: UUID | None = None
     managers_id: list[UUID] | None = None
-    active: bool | None = None
+    active: bool | None = Field(None, alias='is_active')
 
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='forbid', populate_by_name=True)
 
     @model_validator(mode='after')
     def forbid_nulls(self) -> Self:
