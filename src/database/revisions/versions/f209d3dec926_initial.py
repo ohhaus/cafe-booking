@@ -1,8 +1,8 @@
 """initial
 
-Revision ID: d47ccebe0f28
+Revision ID: f209d3dec926
 Revises:
-Create Date: 2025-12-21 00:36:54.359716
+Create Date: 2025-12-22 02:37:48.770190
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'd47ccebe0f28'
+revision: str = 'f209d3dec926'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -100,6 +100,22 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['dish_id'], ['dish.id'], ),
     sa.PrimaryKeyConstraint('dish_id', 'cafe_id')
     )
+    op.create_table('image_media',
+    sa.Column('filename', sa.String(length=255), nullable=False),
+    sa.Column('original_filename', sa.String(length=255), nullable=False),
+    sa.Column('file_size', sa.Integer(), nullable=False),
+    sa.Column('mime_type', sa.String(length=10), nullable=False),
+    sa.Column('storage_path', sa.String(length=500), nullable=False),
+    sa.Column('uploaded_by_id', sa.UUID(), nullable=False),
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text("TIMEZONE('utc', now())"), nullable=False),
+    sa.Column('active', sa.Boolean(), nullable=False),
+    sa.ForeignKeyConstraint(['uploaded_by_id'], ['user.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('filename')
+    )
+    op.create_index(op.f('ix_image_media_active'), 'image_media', ['active'], unique=False)
     op.create_table('slot',
     sa.Column('cafe_id', sa.UUID(), nullable=False),
     sa.Column('start_time', sa.Time(), nullable=False),
@@ -160,6 +176,8 @@ def downgrade() -> None:
     op.drop_table('table')
     op.drop_index(op.f('ix_slot_active'), table_name='slot')
     op.drop_table('slot')
+    op.drop_index(op.f('ix_image_media_active'), table_name='image_media')
+    op.drop_table('image_media')
     op.drop_table('dishes_cafes')
     op.drop_table('cafes_managers')
     op.drop_index('ix_booking_user_id', table_name='booking')
