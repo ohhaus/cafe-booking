@@ -51,13 +51,11 @@ class Slot(Base):
         nullable=True,
     )
     # Связи
-    booking_table_slots: Mapped[List['BookingTableSlot']] = relationship(
+    booking_table_slots: Mapped[list['BookingTableSlot']] = relationship(
         back_populates='slot',
         uselist=True,
         lazy='selectin',
     )
-
-    # Связи
     cafe: Mapped['Cafe'] = relationship(
         'Cafe',
         back_populates='slots',

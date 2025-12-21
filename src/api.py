@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 
-from src.auth.views import router as auth_router
 from src.booking.views import router as booking_router
 from src.cafes.views import router as cafe_router
+from src.dishes.views import router as dishes_router
 from src.slots.views import router as slot_router
 from src.tables.views import router as table_router
 from src.users.views import router as user_router
