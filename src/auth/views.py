@@ -15,7 +15,7 @@ router = APIRouter()
 
 
 @router.post(
-    '/auth/login',
+    '/login',
     response_model=Token,
     status_code=status.HTTP_200_OK,
     summary='Получение токена авторизации',
