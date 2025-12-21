@@ -115,7 +115,7 @@ class Token(BaseModel):
 class LoginForm(BaseModel):
     """Схема для авторизации."""
 
-    login: str
+    login: EmailStr | PhoneStr
     password: PasswordStr
 
 

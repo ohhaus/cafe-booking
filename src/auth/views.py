@@ -30,7 +30,7 @@ async def login(
         session: AsyncSession = Depends(get_async_session),
         ) -> Token:
     """Возвращает токен для последующей авторизации пользователя."""
-    user = await user_crud.get_by_username(auth_data.login, session)
+    user = await user_crud.get_by_login_data(auth_data, session)
 
     if not user or not verify_password(auth_data.password,
                                        user.hashed_password):
