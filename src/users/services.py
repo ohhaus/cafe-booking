@@ -1,7 +1,7 @@
 from typing import Any
 
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import DatabaseService
@@ -54,23 +54,18 @@ class UserService(DatabaseService[User, UserCreate, UserUpdate]):
         self,
         login_data: dict[str, Any],
         session: AsyncSession,
-    ) -> list[User]:
-        """Получает объекты модели, если совпадает хотя бы одно поле."""
-        if not login_data:
-            return []
-        conditions = []
-        for field_name, value in login_data.items():
-            field = getattr(self.model, field_name, None)
-            if field is None:
-                raise ValueError(
-                    f'Поле "{field_name}" не найдено '
-                    f'в модели {self.model.__name__}',
-                )
-            conditions.append(field == value)
+    ) -> User | None:
+        """Получает пользователя по email или телефону."""
+        login_value = login_data.login
 
-        stmt = select(self.model).where(or_(*conditions))
-        result = await session.execute(stmt)
-        return result.scalars().all()
+        # Поиск пользователя по email или телефону
+        query = select(self.model).where(
+            (
+                self.model.email == login_value
+                ) | (self.model.phone == login_value),
+        )
+        result = await session.execute(query)
+        return result.scalars().first()
 
     async def get_active_role_by_ids(
         self,
@@ -105,16 +100,6 @@ class UserService(DatabaseService[User, UserCreate, UserUpdate]):
         )
         result = await session.execute(stmt)
         return result.scalars().all()
-
-    async def get_by_username(
-        self,
-        username: str,
-        session: AsyncSession,
-    ) -> User | None:
-        """Получает пользователя по имени пользователя."""
-        stmt = select(self.model).where(self.model.username == username)
-        result = await session.execute(stmt)
-        return result.scalars().first()
 
 
 user_crud = UserService(User)
