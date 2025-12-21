@@ -43,8 +43,7 @@ class CafeBase(BaseModel):
         max_length=MAX_DESCRIPTION_LENGTH,
         description='Описание кафе',
     )
-    photo_id: UUID = Field(
-        ...,
+    photo_id: Optional[UUID] = Field(
         description='UUID фото',
     )
 
@@ -99,15 +98,8 @@ class CafeUpdate(BaseModel):
     @model_validator(mode='after')
     def forbid_nulls(self) -> Self:
         """Валидация явных Null в обновлении объекта."""
-        for field in (
-            'name',
-            'address',
-            'phone',
-            'photo_id',
-            'managers_id',
-            'active',
-        ):
-            if field in self.model_fields_set and getattr(self, field) is None:
+        for field in self.model_fields_set:
+            if getattr(self, field) is None:
                 raise ValueError(f'Поле {field} не может быть null')
         return self
 
@@ -119,4 +111,4 @@ class CafeCreateDB(BaseModel):
     address: str
     phone: PhoneStr
     description: Optional[str] = None
-    photo_id: UUID
+    photo_id: Optional[UUID]
