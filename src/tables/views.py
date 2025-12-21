@@ -20,7 +20,6 @@ from src.users.models import User, UserRole
 
 
 router = APIRouter(
-    prefix='/cafe',
     tags=['Столы'],
 )
 

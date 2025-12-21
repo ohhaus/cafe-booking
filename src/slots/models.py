@@ -1,5 +1,5 @@
 from datetime import time
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import uuid
 
 from sqlalchemy import (
@@ -12,10 +12,15 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
+    relationship,
 )
 
 from src.config import MAX_DESCRIPTION_LENGTH
 from src.database import Base
+
+
+if TYPE_CHECKING:
+    from src.cafes.models import Cafe
 
 
 class Slot(Base):
@@ -43,6 +48,13 @@ class Slot(Base):
     description: Mapped[Optional[str]] = mapped_column(
         String(MAX_DESCRIPTION_LENGTH),
         nullable=True,
+    )
+
+    # Связи
+    cafe: Mapped['Cafe'] = relationship(
+        'Cafe',
+        back_populates='slots',
+        lazy='selectin',
     )
 
     __table_args__ = (

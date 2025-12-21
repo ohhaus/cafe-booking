@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import Select
 
 from src.cafes.models import Cafe
@@ -53,7 +54,11 @@ class SlotService(DatabaseService[Slot, TimeSlotCreateDB, TimeSlotUpdate]):
     @staticmethod
     def _cafe_scoped_stmt(cafe_id: UUID) -> Select:
         """Возвращает запрос слота к определенному кафе."""
-        return select(Slot).where(Slot.cafe_id == cafe_id)
+        return (
+            select(Slot)
+            .options(selectinload(Slot.cafe))
+            .where(Slot.cafe_id == cafe_id)
+        )
 
     @staticmethod
     def _with_id(stmt: Select, slot_id: UUID) -> Select:
