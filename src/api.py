@@ -1,10 +1,10 @@
 from fastapi import APIRouter
 
-from src.auth import auth_router
+from src.auth.views import router as auth_router
 from src.booking.views import router as booking_router
-from src.dishes import dishes_router
-from src.media import media_router
-from src.users import user_router
+from src.dishes.views import router as dishes_router
+from src.media.views import router as media_router
+from src.users.views import router as user_router
 
 
 main_router = APIRouter()
