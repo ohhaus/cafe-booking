@@ -26,6 +26,7 @@ from src.config import (
     MAX_PHONE_LENGTH,
 )
 from src.database.base import Base
+from src.dishes.models import Dish
 from src.media.models import ImageMedia
 from src.users.models import User, UserRole
 
@@ -109,11 +110,11 @@ class Cafe(Base):
         back_populates='cafe',
         lazy='selectin',
     )
-    # dishes: Mapped[list['Dish']] = relationship(
-    #     'Dish',
-    #     secondary='dishes_cafes',
-    #     back_populates='cafes',
-    # )
+    dishes: Mapped[list['Dish']] = relationship(
+        'Dish',
+        secondary='dishes_cafes',
+        back_populates='cafes',
+    )
     tables: Mapped[list['Table']] = relationship(
         'Table',
         back_populates='cafe',
