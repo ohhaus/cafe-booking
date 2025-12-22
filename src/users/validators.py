@@ -15,20 +15,39 @@ async def check_user_duplicate(
     """Проверяет пользователя на уникальность при создании и при обновлении."""
     unique_fields = ('username', 'email', 'phone', 'tg_id')
     login_data = user_data.model_dump(exclude_unset=True)
-    login_data = {k: v for k, v in login_data.items() if k in unique_fields}
-    users = await user_crud.get_by_login_data(login_data, session)
-    for user in users:
-        if updated_user and updated_user.id == user.id:
-            continue
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail='Пользователь с такими данными уже существует!',
-        )
+    login_data = {
+        k: v
+        for k, v in login_data.items()
+        if k in unique_fields and v is not None
+    }
+
+    if not login_data:
+        return
+
+    for field, value in login_data.items():
+        if field == 'username':
+            user = await user_crud.get_by_username(value, session)
+        else:
+            from sqlalchemy import select
+
+            from src.users.models import User
+
+            stmt = select(User).where(getattr(User, field) == value)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+
+        if user:
+            if updated_user and updated_user.id == user.id:
+                continue
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Пользователь с такими данными уже существует!',
+            )
 
 
 def check_user_contacts(user_update: UserUpdate, user: User) -> None:
     """Проверяет наличие контактных данных при обновлении."""
-    data = user_update.model_dump(exclude_unset=True)
+    data = user_update.model_dump(exclude_unset=True, exclude_none=True)
     phone = data.get('phone', user.phone)
     email = data.get('email', user.email)
 
@@ -39,18 +58,32 @@ def check_user_contacts(user_update: UserUpdate, user: User) -> None:
         )
 
 
-def check_admin_permission(user_update: UserUpdate, user: User) -> None:
-    """Проверяет наличие возможность персонала менять роль пользователя."""
-    if isinstance(user_update.role, UserRole) and user.role != UserRole.ADMIN:
+def check_admin_permission(
+    user_update: UserUpdate,
+    current_user: User,
+    target_user: User | None = None,
+) -> None:
+    """Проверяет возможность персонала менять роль пользователя."""
+    data = user_update.model_dump(exclude_unset=True, exclude_none=True)
+
+    if 'role' in data and current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='У вас нет прав на изменение роли пользователя!',
         )
-    if isinstance(user_update.is_active, bool) and user.role != UserRole.ADMIN:
+
+    if 'is_active' in data and current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='У вас нет прав на изменение активности пользователя!',
         )
+
+    if target_user and target_user.id == current_user.id:
+        if 'role' in data or 'is_active' in data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=('Вы не можете изменить свою собственную роль!'),
+            )
 
 
 def check_password(user_update: UserUpdate, user: User) -> None:
