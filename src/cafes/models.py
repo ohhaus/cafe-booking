@@ -25,10 +25,9 @@ from src.config import (
     MAX_NAME_LENGTH,
     MAX_PHONE_LENGTH,
 )
-from src.database import Base
+from src.database.base import Base
 from src.dishes.models import Dish
-
-# from src.media.models import ImageMedia
+from src.media.models import ImageMedia
 from src.users.models import User, UserRole
 
 
@@ -98,6 +97,12 @@ class Cafe(Base):
         viewonly=True,
         overlaps='managed_cafes, cafes',
     )
+    photo_id: Mapped[Optional[UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey('image_media.id'),
+        unique=True,
+        nullable=True,
+    )
 
     #  Связи
     bookings: Mapped[list['Booking']] = relationship(
@@ -120,13 +125,11 @@ class Cafe(Base):
         back_populates='cafe',
         lazy='selectin',
     )
-    # При мерже модуля Media нужно раскомитить.
-    # photo_id: Mapped[Optional[UUID]] = mapped_column(
-    #     UUID(as_uuid=True),
-    #     ForeignKey('image_media.id'),
-    #     unique=True,
-    #     nullable=True,
-    # )
+    photo: Mapped[Optional['ImageMedia']] = relationship(
+        'ImageMedia',
+        lazy='selectin',
+        foreign_keys={photo_id},
+    )
 
     __table_args__ = (
         UniqueConstraint('name', 'address', name='uq_cafe_name_address'),
