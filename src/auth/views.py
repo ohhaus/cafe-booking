@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.responces import LOGIN_RESPONSES
 from src.config import settings
 from src.database.sessions import get_async_session
-from src.users.schemas import LoginForm, Token
+from src.users.schemas import AuthData, AuthToken
 from src.users.security import create_access_token, verify_password
 from src.users.services import user_crud
 
@@ -16,18 +16,18 @@ router = APIRouter()
 
 @router.post(
     '/login',
-    response_model=Token,
+    response_model=AuthToken,
     status_code=status.HTTP_200_OK,
     summary='Получение токена авторизации',
     description='Возвращает токен для последующей авторизации пользователя.',
     responses=LOGIN_RESPONSES,
 )
 async def login(
-    auth_data: LoginForm,
+    auth_data: AuthData,
     session: AsyncSession = Depends(get_async_session),
-) -> Token:
+) -> AuthToken:
     """Возвращает токен для последующей авторизации пользователя."""
-    user = await user_crud.get_by_username(auth_data.login, session)
+    user = await user_crud.get_by_login_data(auth_data, session)
 
     if not user or not verify_password(
         auth_data.password,
@@ -47,4 +47,4 @@ async def login(
         expires_delta=expires_delta,
     )
 
-    return Token(access_token=access_token, token_type='bearer')
+    return AuthToken(access_token=access_token, token_type='bearer')

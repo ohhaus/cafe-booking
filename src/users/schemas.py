@@ -106,14 +106,14 @@ PhoneStr = Annotated[
 ]
 
 
-class Token(BaseModel):
+class AuthToken(BaseModel):
     """Схема для токена."""
 
     access_token: str
     token_type: str
 
 
-class LoginForm(BaseModel):
+class AuthData(BaseModel):
     """Схема для авторизации."""
 
     login: str

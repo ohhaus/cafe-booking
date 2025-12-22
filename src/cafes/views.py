@@ -15,10 +15,7 @@ from src.users.dependencies import require_roles
 from src.users.models import User, UserRole
 
 
-router = APIRouter(
-    prefix='/cafe',
-    tags=['Кафе'],
-)
+router = APIRouter()
 
 logger = logging.getLogger('app')
 
@@ -27,7 +24,7 @@ logger = logging.getLogger('app')
     '',
     response_model=CafeInfo,
     status_code=status.HTTP_201_CREATED,
-    summary='Созданик нового кафе.',
+    summary='Создание нового кафе.',
     responses={
         201: {'description': 'Успешно'},
         400: {'description': 'Ошибка в параметрах запроса'},
