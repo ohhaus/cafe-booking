@@ -14,7 +14,7 @@ class ImageMedia(Base):
     storage_path = Column(String(500), nullable=False)
     uploaded_by_id = Column(
         UUID(as_uuid=True),
-        ForeignKey('users.id'),
+        ForeignKey('user.id'),
         nullable=False,
     )
 
