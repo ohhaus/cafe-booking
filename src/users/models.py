@@ -54,13 +54,13 @@ class User(Base):
         nullable=False,
     )
 
-    cafes = relationship(  # : Mapped[List["Cafe"]]
+    cafes = relationship(
         'Cafe',
         secondary='cafes_managers',
         back_populates='managers',
         lazy='selectin',
     )
-    bookings = relationship(  # : Mapped[List["Booking"]]
+    bookings = relationship(
         'Booking',
         back_populates='user',
         lazy='selectin',
@@ -72,6 +72,11 @@ class User(Base):
             name='check_email_or_phone_not_null',
         ),
     )
+
+    @property
+    def is_active(self) -> bool:
+        """Свойство для совместимости с API."""
+        return self.active
 
     def is_admin(self) -> bool:
         """Определяет, является ли пользователь администратором."""

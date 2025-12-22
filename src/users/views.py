@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,25 +25,24 @@ router = APIRouter()
     response_model=UserRead,
     status_code=status.HTTP_201_CREATED,
     summary='Регистрация нового пользователя',
+    description=(
+        'Создает нового пользователя с указанными данными. <br><br>'
+        '<b>Обязательные поля:</b> <ul><li>username</li><li>password</li>'
+        '<li>email или phone</li></ul>'
+    ),
 )
 @log_action('Регистрация нового пользователя.')
 async def register_user(
     user_create: UserCreate,
     session: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(
+    current_user: User | None = Depends(
         require_roles(
             [UserRole.MANAGER, UserRole.ADMIN],
             allow_guest=True,
         ),
     ),
 ) -> User:
-    """Регистрация нового пользователя.
-
-    **Доступ:**
-    - неавторизированный пользователь
-    - менеджер
-    - администратор
-    """
+    """Регистрация нового пользователя."""
     await check_user_duplicate(user_create, session)
     return await user_crud.create(user_create, session)
 
@@ -50,17 +51,17 @@ async def register_user(
     '/me',
     response_model=UserRead,
     status_code=status.HTTP_200_OK,
-    summary='Получение данных о текущем пользователе',
+    summary='Получение информации о текущем пользователе',
+    description=(
+        'Возвращает информацию о текущем пользователе. Только для '
+        'авторизированных пользователей'
+    ),
 )
 @log_action('Получение данных о текущем пользователе.')
 async def get_me(
     current_user: User = Depends(require_roles()),
 ) -> User:
-    """Получение данных о текущем пользователе.
-
-    **Доступ:**
-    - авторизированный пользователь
-    """
+    """Получение данных о текущем пользователе."""
     return current_user
 
 
@@ -68,7 +69,11 @@ async def get_me(
     '/me',
     response_model=UserRead,
     status_code=status.HTTP_200_OK,
-    summary='Обновление данных текущего пользователя',
+    summary='Обновление информации о текущем пользователе',
+    description=(
+        'Возвращает обновленную информацию о пользователе. Только для '
+        'авторизированных пользователей'
+    ),
 )
 @log_action('Обновление данных текущего пользователя.')
 async def update_me(
@@ -76,17 +81,11 @@ async def update_me(
     session: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_roles()),
 ) -> User:
-    """Обновление данных текущего пользователя.
-
-    Изменение роли и активности доступно только администратору.
-
-    **Доступ:**
-    - авторизированный пользователь
-    """
+    """Обновление данных текущего пользователя."""
     await check_user_duplicate(user_update, session, current_user)
     check_user_contacts(user_update, current_user)
     check_password(user_update, current_user)
-    check_admin_permission(user_update, current_user)
+    check_admin_permission(user_update, current_user, current_user)
     return await user_crud.update(current_user, user_update, session)
 
 
@@ -94,7 +93,11 @@ async def update_me(
     '/',
     response_model=list[UserRead],
     status_code=status.HTTP_200_OK,
-    summary='Получение данных о всех пользователях',
+    summary='Получение списка пользователей',
+    description=(
+        'Возвращает информацию о всех пользователях. Только для '
+        'администраторов или менеджеров'
+    ),
 )
 @log_action('Получение данных о всех пользователях.')
 async def get_all_users(
@@ -103,12 +106,7 @@ async def get_all_users(
         require_roles([UserRole.MANAGER, UserRole.ADMIN]),
     ),
 ) -> list[User]:
-    """Получение данных о всех пользователях.
-
-    **Доступ:**
-    - менеджер
-    - администратор
-    """
+    """Получение данных о всех пользователях."""
     return await user_crud.get_multi(session)
 
 
@@ -116,22 +114,21 @@ async def get_all_users(
     '/{user_id}',
     response_model=UserRead,
     status_code=status.HTTP_200_OK,
-    summary='Получение данных пользователя по id',
+    summary='Получение информации о пользователе по его ID',
+    description=(
+        'Возвращает информацию о пользователе по его ID. Только для '
+        'администраторов или менеджеров'
+    ),
 )
 @log_action('Получение данных пользователя по id.')
 async def get_user(
-    user_id: int,
+    user_id: UUID,
     session: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(
         require_roles([UserRole.MANAGER, UserRole.ADMIN]),
     ),
 ) -> User:
-    """Получение данных пользователя по id.
-
-    **Доступ:**
-    - менеджер
-    - администратор
-    """
+    """Получение данных пользователя по id."""
     user = await user_crud.get(user_id, session)
     if not user:
         raise HTTPException(
@@ -145,25 +142,22 @@ async def get_user(
     '/{user_id}',
     response_model=UserRead,
     status_code=status.HTTP_200_OK,
-    summary='Обновление данных пользователя по id',
+    summary='Обновление информации о пользователе по его ID',
+    description=(
+        'Возвращает обновленную информацию о пользователе по его ID. '
+        'Только для администраторов или менеджеров'
+    ),
 )
 @log_action('Обновление данных пользователя по id.')
 async def update_user_by_id(
-    user_id: int,
+    user_id: UUID,
     user_update: UserUpdate,
     session: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(
         require_roles([UserRole.MANAGER, UserRole.ADMIN]),
     ),
 ) -> User:
-    """Обновление данных пользователя по id.
-
-    Изменение роли и активности доступно только администратору.
-
-    **Доступ:**
-    - менеджер
-    - администратор
-    """
+    """Обновление данных пользователя по id."""
     user = await user_crud.get(user_id, session)
     if not user:
         raise HTTPException(
@@ -173,5 +167,5 @@ async def update_user_by_id(
     await check_user_duplicate(user_update, session, user)
     check_user_contacts(user_update, user)
     check_password(user_update, user)
-    check_admin_permission(user_update, current_user)
+    check_admin_permission(user_update, current_user, user)
     return await user_crud.update(user, user_update, session)

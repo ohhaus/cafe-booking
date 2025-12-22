@@ -1,5 +1,5 @@
 import re
-from typing import Annotated, Self
+from typing import Annotated, Any, Self
 from uuid import UUID
 
 from pydantic import (
@@ -8,6 +8,7 @@ from pydantic import (
     EmailStr,
     Field,
     PlainValidator,
+    field_validator,
     model_validator,
 )
 from pydantic_extra_types.phone_numbers import PhoneNumber
@@ -30,10 +31,10 @@ class PhoneE164(PhoneNumber):
     phone_format = 'E164'
 
 
-def validate_password(value: str) -> str:
+def validate_password(value: str | None) -> str | None:
     """Проверка пароля."""
     if value is None:
-        raise ValueError('Пароль не может быть null')
+        return None
     if not re.search(r'[A-Z]', value):
         raise ValueError(
             'Пароль должен содержать хотя бы одну заглавную букву',
@@ -47,14 +48,12 @@ def validate_password(value: str) -> str:
     return value
 
 
-def validate_username(value: str) -> str:
+def validate_username(value: str | None) -> str | None:
     """Проверка имени пользователя."""
     if value is None:
-        raise ValueError('Имя пользователя не может быть null')
+        return None
     if not is_safe_username(value):
-        raise ValueError(
-            'Недопустимое имя пользователя',
-        )
+        raise ValueError('Недопустимое имя пользователя')
     return value
 
 
@@ -106,18 +105,23 @@ PhoneStr = Annotated[
 ]
 
 
-class AuthToken(BaseModel):
+class Token(BaseModel):
     """Схема для токена."""
 
     access_token: str
-    token_type: str
+    token_type: str = 'bearer'
 
 
 class AuthData(BaseModel):
     """Схема для авторизации."""
 
-    login: str
-    password: PasswordStr
+    login: str = Field(
+        ...,
+        description='Логин пользователя (email или телефон)',
+    )
+    password: str = Field(..., description='Пароль пользователя')
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RoleMixin(BaseModel):
@@ -129,9 +133,9 @@ class RoleMixin(BaseModel):
 class BaseUser(BaseModel):
     """Базовая схема для пользователя."""
 
-    email: EmailStr | None = None
-    phone: PhoneStr | None = None
-    tg_id: TagIdStr | None = None
+    email: EmailStr | None = Field(None, validate_default=False)
+    phone: PhoneStr | None = Field(None, validate_default=False)
+    tg_id: TagIdStr | None = Field(None, validate_default=False)
 
     model_config = ConfigDict(extra='forbid')
 
@@ -140,6 +144,9 @@ class UserRead(BaseRead, BaseUser, RoleMixin):
     """Схема для чтения данных пользователя."""
 
     username: UsernameStr
+    is_active: bool = Field(alias='active')
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserReadView(BaseUser):
@@ -168,7 +175,19 @@ class UserUpdate(BaseUser, RoleMixin):
 
     username: UsernameStr | None = None
     password: PasswordStr | None = None
-    is_active: bool | None = None
+    is_active: bool | None = Field(None, alias='active')
+
+    @field_validator('password', mode='before')
+    @classmethod
+    def validate_password_none(cls, v: Any) -> Any:
+        """Разрешаем None для пароля."""
+        return v
+
+    @field_validator('username', mode='before')
+    @classmethod
+    def validate_username_none(cls, v: Any) -> Any:
+        """Разрешаем None для username."""
+        return v
 
     @model_validator(mode='after')
     def forbid_nulls(self) -> Self:
@@ -178,17 +197,22 @@ class UserUpdate(BaseUser, RoleMixin):
                 raise ValueError(f'Поле {field} не может быть null')
         return self
 
-    @model_validator(mode='before')
-    @classmethod
-    def check_contact(cls, data: dict) -> dict:
-        """Проверка наличия email или phone."""
-        if 'phone' in data and 'email' in data:
-            if not data['phone'] and not data['email']:
-                raise ValueError(
-                    'Необходимо указать email или телефон',
-                )
-        return data
+    @model_validator(mode='after')
+    def check_contact(self) -> Self:
+        """Проверка наличия email или phone при обновлении."""
+        return self
 
 
 class AdminUserCreate(UserCreate, RoleMixin):
     """Схема для создания пользователя с ролью."""
+
+    pass
+
+
+class AuthToken(BaseModel):
+    """Схема для ответа с токеном."""
+
+    access_token: str
+    token_type: str = 'bearer'
+
+    model_config = ConfigDict(from_attributes=True)

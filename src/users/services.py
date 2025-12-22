@@ -1,12 +1,12 @@
 from typing import Any
 
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import DatabaseService
 from src.users.models import User, UserRole
-from src.users.schemas import UserCreate, UserUpdate
+from src.users.schemas import AuthData, UserCreate, UserUpdate
 from src.users.security import get_password_hash
 
 
@@ -37,7 +37,11 @@ class UserService(DatabaseService[User, UserCreate, UserUpdate]):
     ) -> User:
         """Обновляет существующий объект новыми данными."""
         obj_data = jsonable_encoder(db_obj)
-        update_data = obj_in.model_dump(exclude_unset=True)
+        update_data = obj_in.model_dump(exclude_unset=True, exclude_none=True)
+
+        if 'is_active' in update_data:
+            update_data['active'] = update_data.pop('is_active')
+
         if update_data.get('password'):
             update_data['hashed_password'] = get_password_hash(
                 update_data.pop('password'),
@@ -52,20 +56,33 @@ class UserService(DatabaseService[User, UserCreate, UserUpdate]):
 
     async def get_by_login_data(
         self,
-        login_data: dict[str, Any],
+        login_data: dict[str, Any] | AuthData,
         session: AsyncSession,
     ) -> User | None:
-        """Получает пользователя по email или телефону."""
-        login_value = login_data.login
+        """Получает пользователя по логину (email или phone)."""
+        if isinstance(login_data, AuthData):
+            stmt = select(self.model).where(
+                or_(
+                    self.model.email == login_data.login,
+                    self.model.phone == login_data.login,
+                ),
+            )
+        else:
+            if not login_data:
+                return None
+            conditions = []
+            for field_name, value in login_data.items():
+                field = getattr(self.model, field_name, None)
+                if field is None:
+                    raise ValueError(
+                        f'Поле "{field_name}" не найдено в модели '
+                        f'{self.model.__name__}',
+                    )
+                conditions.append(field == value)
+            stmt = select(self.model).where(or_(*conditions))
 
-        # Поиск пользователя по email или телефону
-        query = select(self.model).where(
-            (
-                self.model.email == login_value
-                ) | (self.model.phone == login_value),
-        )
-        result = await session.execute(query)
-        return result.scalars().first()
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_active_role_by_ids(
         self,
@@ -79,7 +96,7 @@ class UserService(DatabaseService[User, UserCreate, UserUpdate]):
         stmt = select(self.model).where(
             and_(
                 self.model.role == role,
-                self.model.is_active,
+                self.model.active,
                 self.model.id.in_(ids),
             ),
         )
@@ -95,11 +112,21 @@ class UserService(DatabaseService[User, UserCreate, UserUpdate]):
         stmt = select(self.model).where(
             and_(
                 self.model.role == role,
-                self.model.is_active,
+                self.model.active,
             ),
         )
         result = await session.execute(stmt)
         return result.scalars().all()
+
+    async def get_by_username(
+        self,
+        username: str,
+        session: AsyncSession,
+    ) -> User | None:
+        """Получает пользователя по имени пользователя."""
+        stmt = select(self.model).where(self.model.username == username)
+        result = await session.execute(stmt)
+        return result.scalars().first()
 
 
 user_crud = UserService(User)
