@@ -1,8 +1,14 @@
 from datetime import date, datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    model_validator,
+)
 
 from src.booking.constants import MAX_GUEST_NUMBER
 from src.booking.models import BookingStatus
@@ -89,6 +95,39 @@ class BookingCreate(BaseModel):
     status: BookingStatus
     booking_date: date
 
+    model_config = ConfigDict(extra='forbid')
+
+
+class BookingUpdate(BaseModel):
+    """Схема для обновления бронирования."""
+
+    cafe_id: Optional[UUID] = None
+    tables_slots: Optional[List[TablesSlots]] = Field(
+        min_length=1,
+        description='Должен быть хотя бы один стол и слот.',
+    )
+    guest_number: Optional[int] = Field(
+        gt=0,
+        le=MAX_GUEST_NUMBER,
+        description='Количество гостей должно быть больше 0 и не превышать '
+        f'максимальное значение {MAX_GUEST_NUMBER}.',
+    )
+    note: Optional[str] = None
+    status: Optional[BookingStatus] = None
+    booking_date: Optional[date] = None
+    is_active: Optional[bool] = None
+
+    model_config = ConfigDict(extra='forbid')
+
+    @model_validator(mode='after')
+    def forbid_nulls(self) -> Self:
+        """Запрещает передачу явных null-значений для любых полей."""
+        for field in self.model_fields_set:
+            value = getattr(self, field)
+            if value is None:
+                raise ValueError(f'Поле {field} не может быть null')
+        return self
+
 
 class BookingInfo(BaseModel):
     """Полная информация о бронировании."""
@@ -96,7 +135,9 @@ class BookingInfo(BaseModel):
     id: UUID
     user: UserShortInfo
     cafe: CafeShortInfo
-    tables_slots: List[TablesSlotsInfo]
+    tables_slots: List[TablesSlotsInfo] = Field(
+        validation_alias='booking_table_slots',
+    )
     guest_number: int
     note: str
     status: BookingStatus

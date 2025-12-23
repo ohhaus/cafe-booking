@@ -55,21 +55,21 @@ class User(Base):
     )
 
     cafes = relationship(  # : Mapped[List["Cafe"]]
-        "Cafe",
-        secondary="cafes_managers",
-        back_populates="managers",
-        lazy="selectin",
+        'Cafe',
+        secondary='cafes_managers',
+        back_populates='managers',
+        lazy='selectin',
     )
     bookings = relationship(  # : Mapped[List["Booking"]]
-        "Booking",
-        back_populates="user",
-        lazy="selectin",
+        'Booking',
+        back_populates='user',
+        lazy='selectin',
     )
 
     __table_args__ = (
         CheckConstraint(
-            "email IS NOT NULL OR phone IS NOT NULL",
-            name="check_email_or_phone_not_null",
+            'email IS NOT NULL OR phone IS NOT NULL',
+            name='check_email_or_phone_not_null',
         ),
     )
 
