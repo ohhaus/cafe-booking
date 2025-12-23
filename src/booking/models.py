@@ -24,6 +24,11 @@ if TYPE_CHECKING:
     from src.users.models import User
 
 
+def date_today() -> date:
+    """Возвращает текущую дату."""
+    return date.today()
+
+
 class Booking(Base):
     """Модель бронирования.
 
@@ -59,7 +64,7 @@ class Booking(Base):
     booking_date: Mapped[date] = mapped_column(
         Date,
         comment='Дата брони',
-        default=lambda: date.today(),
+        default=date_today,
         nullable=False,
     )
     note: Mapped[str] = mapped_column(
@@ -99,32 +104,14 @@ class Booking(Base):
         Index('ix_booking_cafe_date', cafe_id, booking_date),
     )
 
-    def create_booking(self) -> None:
-        """Создает бронирование."""
-        for bts in self.booking_table_slots:
-            bts.restore()
-        self.status = BookingStatus.BOOKING
-
-    def activate_booking(self) -> None:
-        """Активирует бронирование."""
-        for bts in self.booking_table_slots:
-            bts.restore()
-        self.status = BookingStatus.ACTIVE
-
-    def complete_booking(self) -> None:
-        """Завершает бронирование."""
-        for bts in self.booking_table_slots:
-            bts.restore()
-        self.status = BookingStatus.COMPLETED
-
     def cancel_booking(self) -> None:
-        """Отменяет бронирование."""
+        """Отменяет бронирование столов-слотов."""
         for bts in self.booking_table_slots:
             bts.soft_delete()
         self.status = BookingStatus.CANCELED
 
     def restore_booking(self) -> None:
-        """Восстанавливает отменённое бронирование."""
+        """Восстанавливает отменённое бронирование столов-слотов."""
         for bts in self.booking_table_slots:
             bts.restore()
         self.status = BookingStatus.BOOKING
