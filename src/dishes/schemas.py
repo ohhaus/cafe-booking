@@ -26,7 +26,7 @@ class BaseDish(BaseModel):
         max_length=MAX_DESCRIPTION_LENGTH,
         min_length=MIN_DESCRIPTION_LENGTH,
     )
-    photo_id: Optional[UUID] = Field(None, max_length=UUID_LENGTH)
+    photo_id: Optional[UUID] = Field(None, description='UUID фото')
     price: Decimal = Field(..., ge=DISH_MIN_PRICE, le=DISH_MAX_PRICE)
 
 

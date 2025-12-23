@@ -7,7 +7,7 @@ from sqlalchemy.exc import DatabaseError  # IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.sessions import get_async_session
-from src.dishes.crud import crud_dish
+from src.dishes.crud import crud_dish, CRUDDish
 from src.dishes.responses import (
     DISH_CREATE_RESPONSES,
     DISH_GET_BY_ID_RESPONSES,
@@ -55,14 +55,13 @@ async def get_dishes(
 ) -> List[DishInfo]:
     """Получение списка блюд."""
     try:
-        crud = crud_dish(session)
+        crud = CRUDDish(session)
         is_staff = current_user.is_staff()
 
         dishes = await crud.get_dishes(
-            current_user_id=current_user.id,
-            is_staff=is_staff,
-            show_all=(show_all if is_staff else False),
             cafe_id=cafe_id,
+            session=session,
+            show_all=(show_all if is_staff else False),
         )
 
         if not dishes:
@@ -131,8 +130,8 @@ async def create_dish(
 
     # Логика создания блюда
     try:
-        crud = crud_dish(session)
-        new_dish = await crud.create_dish(dish_in)
+        crud = CRUDDish(session)
+        new_dish = await crud.create_dish(session=session, obj_in=dish_in)
         return DishInfo.model_validate(new_dish)
 
     except Exception as e:

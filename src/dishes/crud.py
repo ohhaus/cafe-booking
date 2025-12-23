@@ -26,7 +26,7 @@ class CRUDDish(DatabaseService[Dish, DishCreate, DishUpdate]):
         """
         stmt = select(Dish)
         if not show_all:
-            stmt = stmt.where(Dish.is_active.is_(True))
+            stmt = stmt.where(Dish.active.is_(True))
         if cafe_id:
             stmt = stmt.join(Dish.cafes).where(Cafe.id == cafe_id)
         result = await session.execute(stmt)
