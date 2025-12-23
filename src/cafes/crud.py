@@ -47,7 +47,7 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
                 Cafe.id == cafe_id,
             ),
         )
-        return result.scalars().one()
+        return result.scalars().one_or_none()
 
     async def create_cafe(
         self,

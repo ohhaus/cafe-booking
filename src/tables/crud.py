@@ -11,7 +11,7 @@ from sqlalchemy.sql import Select
 from src.cafes.models import Cafe
 from src.database.service import DatabaseService
 from src.tables.models import Table
-from src.tables.schemas import TableCreate, TableUpdate
+from src.tables.schemas import TableCreate, TableCreateDB, TableUpdate
 from src.users.models import User
 
 
@@ -169,7 +169,9 @@ class TableService(DatabaseService[Table, dict, TableUpdate]):
         payload = data.model_dump()
         payload['cafe_id'] = cafe_id
 
-        return await super().create(session, obj_in=payload, commit=True)
+        table_db = TableCreateDB(**payload)
+
+        return await super().create(session, obj_in=table_db, commit=True)
 
     async def update_table(
         self,
