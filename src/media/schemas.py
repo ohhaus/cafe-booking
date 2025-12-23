@@ -6,4 +6,4 @@ from pydantic import BaseModel
 class ImageCreateResponse(BaseModel):
     """Схема ответа при создании записи image."""
 
-    meida_id: UUID
+    media_id: UUID
