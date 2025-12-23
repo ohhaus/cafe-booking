@@ -38,7 +38,7 @@ async def upload_image(
         file=file,
         uploaded_by_id=current_user.id,
     )
-    return ImageCreateResponse(meida_id=image.id)
+    return ImageCreateResponse(media_id=image.id)
 
 
 @router.get('/{image_id}')

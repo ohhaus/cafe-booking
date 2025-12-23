@@ -17,17 +17,16 @@ async def save_image(
     uploaded_by_id: uuid.UUID,
 ) -> ImageMedia:
     """Валидация, сохранение файла на диск и создание записи Image в БД."""
-    await validate_image_upload
-    raw_bytes = await file.read()
+    raw_bytes = await validate_image_upload(file)
 
     pil_image: Image.Image = Image.open(io.BytesIO(raw_bytes))
-    pil_image = pil_image.convert("RGB")
+    pil_image = pil_image.convert('RGB')
 
     image_id = uuid.uuid4()
-    filename = f"{image_id}.jpg"
+    filename = f'{image_id}.jpg'
     path = MEDIA_DIR / filename
     path.parent.mkdir(parents=True, exist_ok=True)
-    pil_image.save(path, format="JPEG")
+    pil_image.save(path, format='JPEG')
 
     size = path.stat().st_size
 
