@@ -18,7 +18,6 @@ async def save_image(
 ) -> ImageMedia:
     """Валидация, сохранение файла на диск и создание записи Image в БД."""
     raw_bytes = await validate_image_upload(file)
-
     pil_image: Image.Image = Image.open(io.BytesIO(raw_bytes))
     pil_image = pil_image.convert('RGB')
 
