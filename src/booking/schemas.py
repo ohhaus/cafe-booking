@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import List, Optional, Self
 from uuid import UUID
 
@@ -7,10 +7,11 @@ from pydantic import (
     ConfigDict,
     Field,
     field_serializer,
+    field_validator,
     model_validator,
 )
 
-from src.booking.constants import MAX_GUEST_NUMBER
+from src.booking.constants import MAX_BOOKING_DATE, MAX_GUEST_NUMBER
 from src.booking.models import BookingStatus
 
 
@@ -44,7 +45,7 @@ class TableShortInfo(BaseModel):
 
     id: UUID
     description: Optional[str] = None
-    seat_number: int
+    count_place: int
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -53,11 +54,16 @@ class SlotShortInfo(BaseModel):
     """Краткая информация о временном слоте."""
 
     id: UUID
-    start_time: str
-    end_time: str
+    start_time: time
+    end_time: time
     description: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer('start_time', 'end_time')
+    def serialize_time(self, value: time) -> str:
+        """Сериализовать time в строку в формате HH:MM."""
+        return value.strftime('%H:%M')
 
 
 class TablesSlots(BaseModel):
@@ -77,6 +83,18 @@ class TablesSlotsInfo(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+def _validate_booking_date_in_range(booking_date: date) -> date:
+    """Единая проверка диапазона даты брони (используется в CREATE и PATCH)."""
+    today = date.today()
+    max_date = today + timedelta(days=MAX_BOOKING_DATE)
+    if not (today <= booking_date <= max_date):
+        raise ValueError(
+            'Дата бронирования должна быть в диапазоне от сегодня '
+            f'до {MAX_BOOKING_DATE} дней вперёд.',
+        )
+    return booking_date
+
+
 class BookingCreate(BaseModel):
     """Схема для создания бронирования."""
 
@@ -92,10 +110,44 @@ class BookingCreate(BaseModel):
         f'максимальное значение {MAX_GUEST_NUMBER}.',
     )
     note: Optional[str] = None
-    status: BookingStatus
-    booking_date: date
+    status: BookingStatus = Field(
+        default=BookingStatus.BOOKING,
+        description='Только BOOKING и ACTIVE разрешены при создании.',
+    )
+    booking_date: date = Field(
+        description='Должна быть в диапазоне от сегодня до MAX_BOOKING_DATE '
+        'дней.',
+    )
 
     model_config = ConfigDict(extra='forbid')
+
+    @field_validator('status')
+    @classmethod
+    def validate_status(cls, booking_status: BookingStatus) -> BookingStatus:
+        """Проверяет, что статус допустим при создании."""
+        if booking_status not in (BookingStatus.BOOKING, BookingStatus.ACTIVE):
+            raise ValueError(
+                'При создании бронирования допустимы только статусы: '
+                'BOOKING (0) или ACTIVE (2).',
+            )
+        return booking_status
+
+    @field_validator('booking_date')
+    @classmethod
+    def validate_booking_date(cls, booking_date: date) -> date:
+        """Проверяет, что дата в допустимом диапазоне."""
+        return _validate_booking_date_in_range(booking_date)
+
+    @model_validator(mode='after')
+    def prevent_duplicate_pairs_in_create(self) -> Self:
+        """Запрещает дублирующиеся пары в tables_slots."""
+        pairs = [(ts.table_id, ts.slot_id) for ts in self.tables_slots]
+        if len(pairs) != len(set(pairs)):
+            raise ValueError(
+                'Повторяющиеся (table_id, slot_id) в tables_slots '
+                'недопустимы.',
+            )
+        return self
 
 
 class BookingUpdate(BaseModel):
@@ -119,13 +171,55 @@ class BookingUpdate(BaseModel):
 
     model_config = ConfigDict(extra='forbid')
 
+    @field_validator('booking_date')
+    @classmethod
+    def validate_booking_date_if_provided(
+        cls,
+        booking_date: Optional[date],
+    ) -> Optional[date]:
+        """Проверяет дату в PATCH только если она передана."""
+        if booking_date is None:
+            return booking_date
+        return _validate_booking_date_in_range(booking_date)
+
     @model_validator(mode='after')
     def forbid_nulls(self) -> Self:
         """Запрещает передачу явных null-значений для любых полей."""
         for field in self.model_fields_set:
-            value = getattr(self, field)
-            if value is None:
+            if getattr(self, field) is None:
                 raise ValueError(f'Поле {field} не может быть null')
+        return self
+
+    @model_validator(mode='after')
+    def prevent_duplicate_pairs_in_update(self) -> Self:
+        """Запрещает дублирующиеся пары в tables_slots."""
+        if self.tables_slots is not None:
+            pairs = [(ts.table_id, ts.slot_id) for ts in self.tables_slots]
+            if len(pairs) != len(set(pairs)):
+                raise ValueError(
+                    'Повторяющиеся (table_id, slot_id) в tables_slots '
+                    'недопустимы.',
+                )
+        return self
+
+    @model_validator(mode='after')
+    def validate_status_is_active_consistency(self) -> Self:
+        """Проверяет согласованность status и is_active."""
+        if self.status is None or self.is_active is None:
+            return self
+
+        if self.status == BookingStatus.CANCELED and self.is_active is True:
+            raise ValueError(
+                'Нельзя одновременно установить status=CANCELED и '
+                'is_active=true.',
+            )
+        if self.status != BookingStatus.CANCELED and self.is_active is False:
+            raise ValueError(
+                'Нельзя одновременно установить status!=CANCELED и '
+                'is_active=false. '
+                'Либо отмените бронь через status=CANCELED, либо не '
+                'передавайте is_active.',
+            )
         return self
 
 

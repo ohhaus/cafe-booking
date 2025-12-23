@@ -51,6 +51,11 @@ class Base(DeclarativeBase):
         index=True,
     )
 
+    @property
+    def is_active(self) -> bool:
+        """Флаг активности, используемый при сериализации модели в JSON."""
+        return self.active
+
     @declared_attr.directive
     def __tablename__(cls) -> str:  # noqa
         return resolve_table_name(cls.__name__)

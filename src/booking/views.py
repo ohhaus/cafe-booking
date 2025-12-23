@@ -4,13 +4,15 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.exc import DatabaseError, IntegrityError
+from sqlalchemy.exc import DatabaseError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.booking import Booking
 from src.booking.constants import BookingStatus
 from src.booking.crud import BookingCRUD
+from src.booking.exceptions import handle_booking_exceptions
 from src.booking.schemas import BookingCreate, BookingInfo, BookingUpdate
+from src.booking.services import create_or_update_booking
 from src.booking.validators import (
     PatchEffectiveData,
     build_patch_effective_data,
@@ -19,8 +21,6 @@ from src.booking.validators import (
     validate_booking_data,
     validate_patch_cafe_change_requires_tables_slots,
     validate_patch_effective_booking,
-    validate_patch_not_empty,
-    validate_patch_status_is_active_consistency,
 )
 from src.database.sessions import get_async_session
 from src.users.dependencies import require_roles
@@ -54,7 +54,7 @@ async def create_booking(
         ),
     ),
     db: AsyncSession = Depends(get_async_session),
-) -> BookingInfo:
+) -> BookingInfo | None:
     """Создаёт новое бронирование.
 
     Args:
@@ -66,35 +66,16 @@ async def create_booking(
         BookingInfo: Созданная бронь с подробной информацией.
 
     """
-    logger.info(
-        'Пользователь %s инициировал создание бронирования на дату %s',
-        current_user.id,
-        booking_data.booking_date,
-        extra={'user_id': str(current_user.id)},
-    )
-
     try:
         crud = BookingCRUD(db)
         await validate_booking_data(crud, booking_data, current_user)
 
         # Создание брони
-        booking = await crud.create_booking(
-            user_id=current_user.id,
-            cafe_id=booking_data.cafe_id,
-            guest_number=booking_data.guest_number,
-            note=booking_data.note,
-            status=booking_data.status,
-            booking_date=booking_data.booking_date,
+        booking = await create_or_update_booking(
+            booking_data,
+            current_user,
+            crud,
         )
-
-        # Создание связей стол-слот
-        for ts in booking_data.tables_slots:
-            await crud.create_booking_slot(
-                booking_id=booking.id,
-                table_id=ts.table_id,
-                slot_id=ts.slot_id,
-                booking_date=booking_data.booking_date,
-            )
 
         await db.commit()
         logger.info(
@@ -110,51 +91,16 @@ async def create_booking(
 
         return BookingInfo.model_validate(booking)
 
-    except IntegrityError as e:
-        await db.rollback()
-        logger.error(
-            'Ошибка целостности данных при создании брони: %s',
-            str(e),
-            extra={'user_id': str(current_user.id)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail='Конфликт данных: возможно, дублирующая бронь или '
-            'нарушение ограничений.',
-        ) from e
-
-    except DatabaseError as e:
-        await db.rollback()
-        logger.error(
-            'Ошибка базы данных при создании брони: %s',
-            str(e),
-            extra={'user_id': str(current_user.id)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Временная ошибка базы данных. Попробуйте позже.',
-        ) from e
-
     except HTTPException as e:
-        logger.warning(
-            'HTTP ошибка при создании брони: %s',
-            e.detail,
-            extra={'user_id': str(current_user.id)},
-        )
-        raise
+        raise e
 
     except Exception as e:
         await db.rollback()
-        logger.critical(
-            'Неожиданная ошибка при создании брони: %s',
-            str(e),
-            extra={'user_id': str(current_user.id)},
-            exc_info=True,
+        handle_booking_exceptions(
+            e,
+            current_user.id,
+            'создании',
         )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Внутренняя ошибка сервера.',
-        ) from e
 
 
 @router.get(
@@ -453,13 +399,27 @@ async def patch_booking(
     patch_data: BookingUpdate,
     current_user: User = Depends(require_roles(allow_guest=False)),
     db: AsyncSession = Depends(get_async_session),
-) -> BookingInfo:
+) -> BookingInfo | None:
     """Частично обновляет бронирование."""
     try:
         crud = BookingCRUD(db)
         is_staff = current_user.is_staff()
 
         data = patch_data.model_dump(exclude_unset=True)
+        if not data:
+            logger.warning(
+                'PATCH booking %s: пустой запрос от пользователя %s',
+                booking_id,
+                current_user.id,
+                extra={
+                    'user_id': str(current_user.id),
+                    'booking_id': str(booking_id),
+                },
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Пустой запрос: нет полей для обновления.',
+            )
 
         logger.info(
             'PATCH booking %s от пользователя %s: поля=%s',
@@ -471,8 +431,6 @@ async def patch_booking(
                 'booking_id': str(booking_id),
             },
         )
-
-        validate_patch_not_empty(data)
 
         # 1) Проверить существование брони и права доступа
         booking = await crud.get_booking_by_id(
@@ -495,11 +453,7 @@ async def patch_booking(
                 detail='Бронирование не найдено.',
             )
 
-        # 2) Валидации данных PATCH запроса
-        # 2.1) Согласованность status / is_active
-        validate_patch_status_is_active_consistency(incoming_data=data)
-
-        # 2.2) Запрет смены cafe_id без явного tables_slots
+        # 2) Запрет смены cafe_id без явного tables_slots
         validate_patch_cafe_change_requires_tables_slots(
             incoming_data=data,
             current_cafe_id=booking.cafe_id,
@@ -521,16 +475,7 @@ async def patch_booking(
             current_active_pairs=current_active_pairs,
         )
 
-        # 4) Валидируем "эффективные" данные
-        await validate_patch_effective_booking(
-            crud,
-            cafe_id=effective.cafe_id,
-            booking_date=effective.booking_date,
-            guest_number=effective.guest_number,
-            tables_slots=effective.pairs_list,
-        )
-
-        # 5) tables_slots: расчёт разницы
+        # 4) tables_slots: расчёт разницы
         existing_pairs: Set[Tuple[UUID, UUID]] = set(current_active_pairs)
 
         incoming_pairs, new_pairs = compute_pairs_diff(
@@ -547,31 +492,15 @@ async def patch_booking(
             new_pairs=new_pairs,
         )
 
-        for table_id, slot_id in pairs_to_check:
-            if await crud.is_slot_taken(
-                table_id=table_id,
-                slot_id=slot_id,
-                booking_date=effective.booking_date,
-                exclude_booking_id=booking.id,
-            ):
-                logger.warning(
-                    'PATCH booking %s: конфликт table=%s slot=%s date=%s',
-                    booking_id,
-                    table_id,
-                    slot_id,
-                    effective.booking_date,
-                    extra={
-                        'user_id': str(current_user.id),
-                        'booking_id': str(booking_id),
-                    },
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=(
-                        f'Стол {table_id} в слоте {slot_id} уже забронирован '
-                        f'на {effective.booking_date}'
-                    ),
-                )
+        # 5) Валидируем "эффективные" данные
+        await validate_patch_effective_booking(
+            crud,
+            cafe_id=effective.cafe_id,
+            booking_date=effective.booking_date,
+            guest_number=effective.guest_number,
+            tables_slots=list(pairs_to_check),
+            exclude_booking_id=booking.id,
+        )
 
         # 6) Применяем простые поля
         _apply_simple_fields(booking, data, effective)
@@ -616,62 +545,12 @@ async def patch_booking(
         return BookingInfo.model_validate(booking)
 
     except HTTPException as e:
-        logger.warning(
-            'PATCH booking %s HTTPException: %s',
-            booking_id,
-            e.detail,
-            extra={
-                'user_id': str(current_user.id),
-                'booking_id': str(booking_id),
-            },
-        )
-        raise
-
-    except IntegrityError as e:
-        await db.rollback()
-        logger.error(
-            'PATCH booking %s IntegrityError: %s',
-            booking_id,
-            str(e),
-            extra={
-                'user_id': str(current_user.id),
-                'booking_id': str(booking_id),
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail='Конфликт данных при обновлении бронирования.',
-        ) from e
-
-    except DatabaseError as e:
-        await db.rollback()
-        logger.error(
-            'PATCH booking %s DatabaseError: %s',
-            booking_id,
-            str(e),
-            extra={
-                'user_id': str(current_user.id),
-                'booking_id': str(booking_id),
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Временная ошибка базы данных. Попробуйте позже.',
-        ) from e
+        raise e
 
     except Exception as e:
         await db.rollback()
-        logger.critical(
-            'PATCH booking %s Unexpected error: %s',
-            booking_id,
-            str(e),
-            extra={
-                'user_id': str(current_user.id),
-                'booking_id': str(booking_id),
-            },
-            exc_info=True,
+        handle_booking_exceptions(
+            e,
+            current_user.id,
+            'обновлении',
         )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Внутренняя ошибка сервера.',
-        ) from e
