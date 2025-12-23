@@ -12,6 +12,11 @@ from sqlalchemy.orm import (
 )
 
 
+def now_utc() -> datetime:
+    """Возвращает текущую дату и время в UTC."""
+    return datetime.now(timezone.utc)
+
+
 def resolve_table_name(class_name: str) -> str:
     """Генерирует имя таблицы из имени класса."""
     name = re.split('(?=[A-Z])', class_name)
@@ -28,14 +33,14 @@ class Base(DeclarativeBase):
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=now_utc,
         nullable=False,
         server_default=text("TIMEZONE('utc', now())"),
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=now_utc,
+        onupdate=now_utc,
         nullable=False,
         server_default=text("TIMEZONE('utc', now())"),
     )
