@@ -17,10 +17,6 @@ from src.users.schemas import PhoneStr, UserReadView
 class UserReadInCafe(UserReadView):
     """Схема пользователя для предстваления внутри CafeInfo."""
 
-    active: bool
-    created_at: datetime
-    updated_at: datetime
-
     model_config = ConfigDict(from_attributes=True, extra='forbid')
 
 
@@ -44,6 +40,7 @@ class CafeBase(BaseModel):
         description='Описание кафе',
     )
     photo_id: Optional[UUID] = Field(
+        None,
         description='UUID фото',
     )
 
@@ -111,4 +108,4 @@ class CafeCreateDB(BaseModel):
     address: str
     phone: PhoneStr
     description: Optional[str] = None
-    photo_id: Optional[UUID]
+    photo_id: Optional[UUID] = None
