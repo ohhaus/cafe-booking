@@ -51,7 +51,9 @@ class CRUDDish(DatabaseService[Dish, DishCreate, DishUpdate]):
 
         try:
             if cafes_id:
-                res = await session.execute(select(Cafe).where(Cafe.id.in_(cafes_id)))
+                res = await session.execute(
+                    select(Cafe).where(Cafe.id.in_(cafes_id)),
+                    )
                 cafes_list = res.scalars().all()
 
                 found_ids = {c.id for c in cafes_list}
