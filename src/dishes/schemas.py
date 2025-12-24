@@ -19,7 +19,6 @@ from src.config import (
 class BaseDish(BaseModel):
     """Базовая схема блюда."""
 
-    id: UUID
     name: str = Field(..., max_length=MAX_NAME_LENGTH)
     description: Optional[str] = Field(
         None,

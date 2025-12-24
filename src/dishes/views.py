@@ -7,7 +7,7 @@ from sqlalchemy.exc import DatabaseError  # IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.sessions import get_async_session
-from src.dishes.crud import crud_dish, CRUDDish
+from src.dishes.crud import CRUDDish, crud_dish
 from src.dishes.responses import (
     DISH_CREATE_RESPONSES,
     DISH_GET_BY_ID_RESPONSES,
@@ -119,7 +119,7 @@ async def create_dish(
 ) -> DishInfo:
     """Создание нового блюда."""
     logger.info(
-        'Пользователь %s инициировал создание Блюда %d',
+        'Пользователь %s инициировал создание блюда %s',
         current_user.id,
         dish_in.name,
         extra={'user_id': str(current_user.id)},
@@ -130,8 +130,7 @@ async def create_dish(
 
     # Логика создания блюда
     try:
-        crud = CRUDDish(session)
-        new_dish = await crud.create_dish(session=session, obj_in=dish_in)
+        new_dish = await crud_dish.create_dish(session=session, obj_in=dish_in)
         return DishInfo.model_validate(new_dish)
 
     except Exception as e:

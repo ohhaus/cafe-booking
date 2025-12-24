@@ -39,7 +39,7 @@ class AuthSettings(BaseSettings):
     """Настройки авторизации."""
 
     secret_key: str = secrets.token_urlsafe(32)
-    access_token_expire_minutes: int = 60
+    access_token_expire_minutes: int = 6000
     algorithm: str = 'HS256'
 
     model_config = SettingsConfigDict(
