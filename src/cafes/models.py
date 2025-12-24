@@ -88,7 +88,7 @@ class Cafe(Base):
     managers: Mapped[list[User]] = relationship(
         'User',
         secondary=cafes_managers,
-        primaryjoin=id == cafes_managers.columns.cafe_id,
+        primaryjoin=lambda: Cafe.id == cafes_managers.columns.cafe_id,
         secondaryjoin=and_(
             User.id == cafes_managers.columns.user_id,
             User.role == UserRole.MANAGER,
