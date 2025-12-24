@@ -1,7 +1,6 @@
-from dataclasses import dataclass
 from datetime import date
 import logging
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import List, Optional, Tuple
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -14,6 +13,8 @@ from src.users.models import User
 
 logger = logging.getLogger('app')
 
+Pair = Tuple[UUID, UUID]
+
 
 async def validate_booking_db_constraints(
     crud: BookingCRUD,
@@ -21,13 +22,13 @@ async def validate_booking_db_constraints(
     cafe_id: UUID,
     booking_date: date,
     guest_number: int,
-    tables_slots: List[Tuple[UUID, UUID]],
+    tables_slots: List[Pair],
     current_user: Optional[User] = None,
     exclude_booking_id: Optional[UUID] = None,
     check_taken: bool = True,
+    require_tables_slots: bool = True,
 ) -> None:
     """Единый async-валидатор БД для CREATE и PATCH."""
-    # Кафе
     cafe = await crud.get_cafe(cafe_id)
     if not cafe:
         raise HTTPException(
@@ -35,12 +36,16 @@ async def validate_booking_db_constraints(
             detail='Кафе не найдено',
         )
 
-    # tables_slots обязателен в "эффективном" наборе
-    if not tables_slots:
+    tables_slots = tables_slots or []
+    if require_tables_slots and not tables_slots:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail='Необходимо указать хотя бы один стол и слот.',
         )
+
+    # В PATCH может прийти пустой список — просто выходим.
+    if not tables_slots:
+        return
 
     table_ids = [table for (table, _) in tables_slots]
     slot_ids = [slot for (_, slot) in tables_slots]
@@ -70,7 +75,7 @@ async def validate_booking_db_constraints(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f'Количество гостей {guest_number} превышает вместимость '
-            'столов',
+            f'столов',
         )
 
     # Занятость
@@ -88,22 +93,26 @@ async def validate_booking_db_constraints(
                     table_id,
                     slot_id,
                     booking_date,
-                    extra={'user_id': getattr(current_user, 'id', None)},
+                    extra={'user_id': str(getattr(current_user, 'id', ''))},
                 )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f'Стол {table_id} в слоте {slot_id} уже '
-                    f'забронирован на {booking_date}',
+                    detail=(
+                        f'Стол {table_id} в слоте {slot_id} уже '
+                        f'забронирован на {booking_date}'
+                    ),
                 )
 
 
-async def validate_booking_data(
+async def validate_create_booking(
     crud: BookingCRUD,
     booking_data: BookingCreate,
     current_user: User,
 ) -> None:
-    """Выполняет все проверки данных перед созданием брони."""
-    pairs = [(ts.table_id, ts.slot_id) for ts in booking_data.tables_slots]
+    """Проверки БД для CREATE."""
+    pairs: List[Pair] = [
+        (ts.table_id, ts.slot_id) for ts in booking_data.tables_slots
+    ]
     await validate_booking_db_constraints(
         crud,
         cafe_id=booking_data.cafe_id,
@@ -113,48 +122,8 @@ async def validate_booking_data(
         current_user=current_user,
         exclude_booking_id=None,
         check_taken=True,
+        require_tables_slots=True,
     )
-
-
-async def validate_patch_effective_booking(
-    crud: BookingCRUD,
-    *,
-    cafe_id: UUID,
-    booking_date: date,
-    guest_number: int,
-    tables_slots: List[Tuple[UUID, UUID]],
-    exclude_booking_id: Optional[UUID] = None,
-    check_taken: bool = False,
-) -> None:
-    """Валидация данных для PATCH."""
-    await validate_booking_db_constraints(
-        crud,
-        cafe_id=cafe_id,
-        booking_date=booking_date,
-        guest_number=guest_number,
-        tables_slots=tables_slots,
-        current_user=None,
-        exclude_booking_id=exclude_booking_id,
-        check_taken=check_taken,
-    )
-
-
-def normalize_tables_slots_to_pairs(
-    tables_slots: Sequence[Any],
-) -> List[Tuple[UUID, UUID]]:
-    """Приводит tables_slots к списку пар (table_id, slot_id).
-
-    Поддерживает элементы как pydantic-объекты с атрибутами table_id/slot_id,
-    так и dict-ы с ключами 'table_id'/'slot_id'.
-    """
-    pairs: List[Tuple[UUID, UUID]] = []
-    for ts in tables_slots:
-        if hasattr(ts, 'table_id') and hasattr(ts, 'slot_id'):
-            pairs.append((ts.table_id, ts.slot_id))
-        else:
-            # ожидаем dict-like
-            pairs.append((ts['table_id'], ts['slot_id']))
-    return pairs
 
 
 def validate_patch_cafe_change_requires_tables_slots(
@@ -175,81 +144,3 @@ def validate_patch_cafe_change_requires_tables_slots(
                     '"tables_slots" (списка столов и слотов) для нового кафе.'
                 ),
             )
-
-
-@dataclass(frozen=True)
-class PatchEffectiveData:
-    """Финальные значения полей брони после применения PATCH-обновления."""
-
-    cafe_id: UUID
-    booking_date: date
-    guest_number: int
-    note: Optional[str]
-    replace_tables_slots: bool
-    pairs_list: List[Tuple[UUID, UUID]]
-
-
-def build_patch_effective_data(
-    incoming_data: Dict[str, Any],
-    *,
-    current_cafe_id: UUID,
-    current_booking_date: date,
-    current_guest_number: int,
-    current_note: Optional[str],
-    current_active_pairs: Iterable[Tuple[UUID, UUID]],
-) -> PatchEffectiveData:
-    """Формирует финальные значения полей после применения PATCH."""
-    effective_cafe_id = incoming_data.get('cafe_id', current_cafe_id)
-    effective_booking_date = incoming_data.get(
-        'booking_date',
-        current_booking_date,
-    )
-    effective_guest_number = incoming_data.get(
-        'guest_number',
-        current_guest_number,
-    )
-    effective_note = incoming_data.get('note', current_note)
-
-    replace_tables_slots = 'tables_slots' in incoming_data
-
-    if replace_tables_slots:
-        pairs_list = normalize_tables_slots_to_pairs(
-            incoming_data['tables_slots'],
-        )
-    else:
-        pairs_list = list(current_active_pairs)
-
-    return PatchEffectiveData(
-        cafe_id=effective_cafe_id,
-        booking_date=effective_booking_date,
-        guest_number=effective_guest_number,
-        note=effective_note,
-        replace_tables_slots=replace_tables_slots,
-        pairs_list=pairs_list,
-    )
-
-
-def compute_pairs_diff(
-    *,
-    existing_active_pairs: Set[Tuple[UUID, UUID]],
-    incoming_pairs_list: List[Tuple[UUID, UUID]],
-) -> Tuple[Set[Tuple[UUID, UUID]], Set[Tuple[UUID, UUID]]]:
-    """Вычисляет разницу между текущими и новыми парами стол-слот."""
-    incoming_pairs = set(incoming_pairs_list)
-    new_pairs = incoming_pairs - existing_active_pairs
-    return incoming_pairs, new_pairs
-
-
-def select_pairs_to_check(
-    *,
-    date_changed: bool,
-    replace_tables_slots: bool,
-    incoming_pairs: Set[Tuple[UUID, UUID]],
-    new_pairs: Set[Tuple[UUID, UUID]],
-) -> Set[Tuple[UUID, UUID]]:
-    """Определяет, какие пары стол-слот нужно проверить на занятость."""
-    if date_changed:
-        return incoming_pairs
-    if replace_tables_slots:
-        return new_pairs
-    return set()

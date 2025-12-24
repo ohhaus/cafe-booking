@@ -155,10 +155,12 @@ class BookingUpdate(BaseModel):
 
     cafe_id: Optional[UUID] = None
     tables_slots: Optional[List[TablesSlots]] = Field(
+        None,
         min_length=1,
         description='Должен быть хотя бы один стол и слот.',
     )
     guest_number: Optional[int] = Field(
+        None,
         gt=0,
         le=MAX_GUEST_NUMBER,
         description='Количество гостей должно быть больше 0 и не превышать '
