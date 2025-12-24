@@ -2,7 +2,7 @@ from datetime import date
 from typing import List, Optional, Sequence
 from uuid import UUID
 
-from sqlalchemy import and_, exists, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -72,25 +72,25 @@ class BookingCRUD:
         exclude_booking_id: Optional[UUID] = None,
     ) -> bool:
         """Проверить, занят ли стол в указанный временной слот на дату."""
-        conflict_query = (
-            exists()
+        stmt = (
+            select(1)
+            .select_from(BookingTableSlot)
             .where(
-                and_(
-                    BookingTableSlot.table_id == table_id,
-                    BookingTableSlot.slot_id == slot_id,
-                    BookingTableSlot.booking_date == booking_date,
-                    BookingTableSlot.active.is_(True),
-                ),
+                BookingTableSlot.table_id == table_id,
+                BookingTableSlot.slot_id == slot_id,
+                BookingTableSlot.booking_date == booking_date,
+                BookingTableSlot.active.is_(True),
             )
-            .select()
+            .limit(1)
         )
-        if exclude_booking_id:
-            conflict_query = conflict_query.where(
+
+        if exclude_booking_id is not None:
+            stmt = stmt.where(
                 BookingTableSlot.booking_id != exclude_booking_id,
             )
 
-        result = await self.db.execute(conflict_query)
-        return bool(result.scalar_one())
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none() is not None
 
     async def check_capacity(
         self,

@@ -19,7 +19,6 @@ def handle_booking_exceptions(
         e: Возникшее исключение.
         user_id: ID пользователя для логирования.
         action: Действие (например, 'создании', 'обновлении').
-        rollback_func: Функция для отката транзакции (например, `db.rollback`).
 
     """
     if isinstance(e, IntegrityError):
@@ -46,15 +45,6 @@ def handle_booking_exceptions(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail='Временная ошибка базы данных. Попробуйте позже.',
         ) from e
-
-    if isinstance(e, HTTPException):
-        logger.warning(
-            'HTTP ошибка при %s брони: %s',
-            action,
-            e.detail,
-            extra={'user_id': str(user_id)},
-        )
-        raise
 
     logger.critical(
         'Неожиданная ошибка при %s брони: %s',
