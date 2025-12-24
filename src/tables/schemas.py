@@ -103,3 +103,13 @@ class TableUpdate(BaseModel):
             if getattr(self, field) is None:
                 raise ValueError(f'Поле {field} не может быть null')
         return self
+
+
+class TableCreateDB(BaseModel):
+    """Схема представления БД."""
+
+    description: str | None = None
+    count_place: int
+    cafe_id: UUID
+
+    model_config = ConfigDict(extra='forbid')
