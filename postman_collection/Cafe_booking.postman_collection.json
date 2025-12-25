@@ -1500,8 +1500,8 @@
 									"if (pm.response.code === 201) {",
 									"    const bookingId = responseData.id;",
 									"    if (bookingId) {",
-									"        pm.collectionVariables.set(\"booking_1_cafe_1\", bookingId);",
-									"        console.log(\"booking_1_cafe_1 сохранён:\", bookingId);",
+									"        pm.collectionVariables.set(\"booking_1_cafe_2\", bookingId);",
+									"        console.log(\"booking_1_cafe_2 сохранён:\", bookingId);",
 									"    } else {",
 									"        console.warn(\"Поле id отсутствует в ответе\");",
 									"    }",
@@ -1549,6 +1549,26 @@
 				},
 				{
 					"name": "get_bookings // Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const responseData = pm.response.json();\r",
+									"\r",
+									"pm.test(\"Статус-код ответа должен быть 200\", function () {\r",
+									"    pm.expect(\r",
+									"        pm.response.code,\r",
+									"        \"Если запрос на изменение бронирования содержит корректные данные - должен вернуться ответ со статус-кодом 200\"\r",
+									"    ).to.eql(200);\r",
+									"});"
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
 					"request": {
 						"auth": {
 							"type": "bearer",
@@ -1576,6 +1596,26 @@
 				},
 				{
 					"name": "get_booking_by_id // Normal",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const responseData = pm.response.json();\r",
+									"\r",
+									"pm.test(\"Статус-код ответа должен быть 200\", function () {\r",
+									"    pm.expect(\r",
+									"        pm.response.code,\r",
+									"        \"Если запрос на изменение бронирования содержит корректные данные - должен вернуться ответ со статус-кодом 200\"\r",
+									"    ).to.eql(200);\r",
+									"});"
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
 					"request": {
 						"auth": {
 							"type": "bearer",
@@ -1608,7 +1648,27 @@
 					"response": []
 				},
 				{
-					"name": "change_booking_1 // Normal",
+					"name": "Test 13: change_booking // Normal",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const responseData = pm.response.json();\r",
+									"\r",
+									"pm.test(\"Статус-код ответа должен быть 200\", function () {\r",
+									"    pm.expect(\r",
+									"        pm.response.code,\r",
+									"        \"Если запрос на изменение бронирования содержит корректные данные - должен вернуться ответ со статус-кодом 200\"\r",
+									"    ).to.eql(200);\r",
+									"});"
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
 					"request": {
 						"auth": {
 							"type": "bearer",
@@ -1624,7 +1684,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n  \"guest_number\": 2,\r\n  \"note\": \"Меняем дату и кол-во гостей\",\r\n  \"booking_date\": \"2025-12-31\"\r\n}",
+							"raw": "{\r\n  \"note\": \"Меняем дату бронирования\",\r\n  \"booking_date\": \"2026-01-17\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1808,8 +1868,16 @@
 			"value": "2550d68d-bee4-4ffc-aedb-1ba1a7aca7c1"
 		},
 		{
+			"key": "table_1_cafe_2_ID",
+			"value": ""
+		},
+		{
 			"key": "booking_1_cafe_1",
 			"value": "c1f5635e-eba0-4ea8-9424-9839ea023cdb"
+		},
+		{
+			"key": "booking_1_cafe_2",
+			"value": ""
 		},
 		{
 			"key": "image_id",
@@ -1821,10 +1889,6 @@
 		},
 		{
 			"key": "slot_2_cafe_1_ID",
-			"value": ""
-		},
-		{
-			"key": "table_1_cafe_2_ID",
 			"value": ""
 		},
 		{

@@ -331,7 +331,7 @@ async def patch_booking(
                 current_user=current_user,
                 exclude_booking_id=booking.id,
                 check_taken=True,
-                require_tables_slots=False,
+                require_tables_slots=True,
             )
 
         if need_capacity_check and effective_pairs:
