@@ -73,52 +73,6 @@ async def get_dishes(
     result = await session.execute(stmt)
 
     return result.scalars().unique().all()
-    # try:
-    #     crud = CRUDDish(session)
-    #     is_staff = current_user.is_staff()
-
-    #     dishes = await crud.get_dishes(
-    #         cafe_id=cafe_id,
-    #         session=session,
-    #         show_all=(show_all if is_staff else False),
-    #     )
-
-    #     if not dishes:
-    #         logger.info(
-    #             'Нет блюд для кафе %s',
-    #             str(cafe_id) if cafe_id else 'всех кафе',
-    #         )
-
-    #     logger.info(
-    #         'Найдено %d блюд для кафе %s',
-    #         len(dishes),
-    #         str(cafe_id) if cafe_id else 'всех кафе',
-    #     )
-
-    #     return [DishInfo.model_validate(b) for b in dishes]
-
-    # except DatabaseError as e:
-    #     logger.error(
-    #         'Ошибка базы данных при получении блюд: %s',
-    #         str(e),
-    #         extra={'user_id': str(current_user.id)},
-    #     )
-    #     raise HTTPException(
-    #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #         detail='Временная ошибка базы данных. Попробуйте позже.',
-    #     ) from e
-
-    # except Exception as e:
-    #     logger.critical(
-    #         'Неожиданная ошибка при получении списка блюд: %s',
-    #         str(e),
-    #         extra={'user_id': str(current_user.id)},
-    #         exc_info=True,
-    #     )
-    #     raise HTTPException(
-    #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-    #         detail='Внутренняя ошибка сервера.',
-    #     ) from e
 
 
 @router.post(

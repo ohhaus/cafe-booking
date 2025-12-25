@@ -55,6 +55,7 @@ class DishUpdate(BaseModel):
 class DishInfo(BaseDish):
     """Полная информации о блюде."""
 
+    id: UUID
     cafes: List[CafeShortInfo]
     is_active: bool = True
     created_at: datetime
