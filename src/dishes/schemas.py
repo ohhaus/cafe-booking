@@ -19,14 +19,13 @@ from src.config import (
 class BaseDish(BaseModel):
     """Базовая схема блюда."""
 
-    id: UUID
     name: str = Field(..., max_length=MAX_NAME_LENGTH)
     description: Optional[str] = Field(
         None,
         max_length=MAX_DESCRIPTION_LENGTH,
         min_length=MIN_DESCRIPTION_LENGTH,
     )
-    photo_id: Optional[UUID] = Field(None, max_length=UUID_LENGTH)
+    photo_id: Optional[UUID] = Field(None, description='UUID фото')
     price: Decimal = Field(..., ge=DISH_MIN_PRICE, le=DISH_MAX_PRICE)
 
 
@@ -56,6 +55,7 @@ class DishUpdate(BaseModel):
 class DishInfo(BaseDish):
     """Полная информации о блюде."""
 
+    id: UUID
     cafes: List[CafeShortInfo]
     is_active: bool = True
     created_at: datetime

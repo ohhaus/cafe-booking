@@ -39,7 +39,7 @@ async def check_exists_cafes_ids(
     result = await session.execute(
         select(Cafe.id).where(
             Cafe.id.in_(cafes_id),
-            Cafe.is_active.is_(True),
+            Cafe.active.is_(True),
         ),
     )
     existing_ids = {row[0] for row in result.all()}
