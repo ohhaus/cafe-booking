@@ -11,8 +11,11 @@ from pydantic import (
     model_validator,
 )
 
-from src.booking.constants import MAX_BOOKING_DATE, MAX_GUEST_NUMBER
-from src.booking.models import BookingStatus
+from src.booking.constants import (
+    BookingStatus,
+    MAX_BOOKING_DATE,
+    MAX_GUEST_NUMBER,
+)
 
 
 class UserShortInfo(BaseModel):

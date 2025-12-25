@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Iterable, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Optional, Tuple, Union
 from uuid import UUID
 
+from src.booking.constants import BookingStatus
 from src.booking.crud import BookingCRUD
 from src.booking.models import Booking
 from src.booking.schemas import BookingCreate, BookingUpdate
@@ -118,3 +119,49 @@ async def _replace_booking_table_slots(
                 slot_id=slot_id,
                 booking_date=booking_date,
             )
+
+
+def apply_status_is_active(
+    booking: Booking,
+    data: Dict[str, Any],
+) -> None:
+    """Обновляет статус и активность брони с учётом бизнес-логики."""
+    if 'status' in data and data['status'] is not None:
+        new_status: BookingStatus = data['status']
+        old_status: BookingStatus = booking.status
+
+        booking.status = new_status
+
+        if new_status == BookingStatus.CANCELED:
+            if booking.active:
+                booking.active = False
+                booking.cancel_booking()
+        else:
+            if (old_status == BookingStatus.CANCELED) or (not booking.active):
+                booking.active = True
+                booking.restore_booking()
+
+        return
+
+    if 'is_active' in data and data['is_active'] is not None:
+        new_active: bool = bool(data['is_active'])
+        old_active: bool = bool(booking.active)
+
+        if old_active is True and new_active is False:
+            booking.active = False
+            booking.cancel_booking()
+            booking.status = BookingStatus.CANCELED
+        elif old_active is False and new_active is True:
+            booking.active = True
+            booking.restore_booking()
+            if booking.status == BookingStatus.CANCELED:
+                booking.status = BookingStatus.BOOKING
+
+
+def active_pairs(booking: Booking) -> list[Pair]:
+    """Возвращает список активных пар (table_id, slot_id) для бронирования."""
+    return [
+        (bts.table_id, bts.slot_id)
+        for bts in booking.booking_table_slots
+        if bts.active
+    ]
