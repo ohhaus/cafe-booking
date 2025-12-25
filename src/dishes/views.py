@@ -18,7 +18,7 @@ from src.dishes.responses import (
 )
 from src.dishes.schemas import DishCreate, DishInfo, DishUpdate
 from src.dishes.services import DishService
-from src.dishes.validators import check_exists_cafes_ids, check_exists_dish
+from src.dishes.validators import check_exists_cafes_ids
 from src.users.dependencies import require_roles
 from src.users.models import User
 
@@ -174,35 +174,23 @@ async def update_dish(
     session: AsyncSession = Depends(get_async_session),
 ) -> DishInfo:
     """Обновление информации о блюде по его ID."""
-    try:
-        crud = crud_dish(session)
-        is_staff = current_user.is_staff()
+    # Загружаем блюдо с предварительной загрузкой отношения cafes
+    stmt = select(
+        Dish,
+        ).where(Dish.id == dish_id).options(selectinload(Dish.cafes))
+    result = await session.execute(stmt)
+    dish = result.scalar_one_or_none()
 
-        # Проверяем, что пользователь имеет право на обновление
-        if not is_staff:
-            logger.info(
-                'Пользователь с ID %d не имеет прав для обновления блюда',
-                current_user.id,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail='Доступ запрещен',
-            )
-
-        # Проверяем, существует ли блюдо
-        await check_exists_dish(dish_id, session)
-
-        dish = await crud.get(dish_id)
-
-        # Обновляем данные блюда
-        update_dish = await crud.update_dish(dish, dish_update=dish_update)
-        return DishInfo.model_validate(update_dish)
-
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        logger.error('Ошибка при обновлении блюда: %s', str(e))
+    if not dish:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail='Ошибка в параметрах запроса',
-        )
+            status_code=404,
+            message="Dish not found")
+
+    # Обновляем данные
+    for key, value in dish_update.dict(exclude_unset=True).items():
+        setattr(dish, key, value)
+
+    await session.commit()
+    await session.refresh(dish)
+
+    return dish
