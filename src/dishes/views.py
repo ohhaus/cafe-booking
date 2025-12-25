@@ -8,14 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.cafes.models import Cafe
-from src.database.sessions import get_async_session
-from src.dishes.crud import crud_dish
-from src.dishes.models import Dish
-from src.dishes.responses import (
+from src.common.responses import (
     DISH_CREATE_RESPONSES,
     DISH_GET_BY_ID_RESPONSES,
     DISH_GET_RESPONSES,
 )
+from src.database.sessions import get_async_session
+from src.dishes.crud import crud_dish
+from src.dishes.models import Dish
 from src.dishes.schemas import DishCreate, DishInfo, DishUpdate
 from src.dishes.services import DishService
 from src.dishes.validators import check_exists_cafes_ids
