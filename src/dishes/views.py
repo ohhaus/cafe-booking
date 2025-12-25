@@ -3,26 +3,29 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.exc import DatabaseError  # IntegrityError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from src.cafes.models import Cafe
 from src.database.sessions import get_async_session
-from src.dishes.crud import CRUDDish, crud_dish
+from src.dishes.crud import crud_dish
+from src.dishes.models import Dish
 from src.dishes.responses import (
     DISH_CREATE_RESPONSES,
     DISH_GET_BY_ID_RESPONSES,
     DISH_GET_RESPONSES,
 )
 from src.dishes.schemas import DishCreate, DishInfo, DishUpdate
+from src.dishes.services import DishService
 from src.dishes.validators import check_exists_cafes_ids, check_exists_dish
 from src.users.dependencies import require_roles
 from src.users.models import User
 
 
 router = APIRouter()
-
-
 logger = logging.getLogger('app')
+dish_service = DishService()
 
 
 @router.get(
@@ -34,7 +37,7 @@ logger = logging.getLogger('app')
         'Для администраторов и менеджеров - '
         'все блюда (с возможностью выбора),'
         ' для пользователей - только активные.'
-    ),
+        ),
     responses=DISH_GET_RESPONSES,
 )
 async def get_dishes(
@@ -54,52 +57,68 @@ async def get_dishes(
     session: AsyncSession = Depends(get_async_session),
 ) -> List[DishInfo]:
     """Получение списка блюд."""
-    try:
-        crud = CRUDDish(session)
-        is_staff = current_user.is_staff()
+    stmt = select(Dish).options(selectinload(Dish.cafes))
 
-        dishes = await crud.get_dishes(
-            cafe_id=cafe_id,
-            session=session,
-            show_all=(show_all if is_staff else False),
-        )
+    if cafe_id is not None:
+        stmt = stmt.join(Dish.cafes).where(Cafe.id == cafe_id)
 
-        if not dishes:
-            logger.info(
-                'Нет блюд для кафе %s',
-                str(cafe_id) if cafe_id else 'всех кафе',
-            )
+    is_staff = current_user.is_staff()
 
-        logger.info(
-            'Найдено %d блюд для кафе %s',
-            len(dishes),
-            str(cafe_id) if cafe_id else 'всех кафе',
-        )
+    if is_staff:
+        if not show_all:
+            stmt = stmt.where(Dish.active.is_(True))
+    else:
+        stmt = stmt.where(Dish.active.is_(True))
 
-        return [DishInfo.model_validate(b) for b in dishes]
+    result = await session.execute(stmt)
 
-    except DatabaseError as e:
-        logger.error(
-            'Ошибка базы данных при получении блюд: %s',
-            str(e),
-            extra={'user_id': str(current_user.id)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Временная ошибка базы данных. Попробуйте позже.',
-        ) from e
+    return result.scalars().unique().all()
+    # try:
+    #     crud = CRUDDish(session)
+    #     is_staff = current_user.is_staff()
 
-    except Exception as e:
-        logger.critical(
-            'Неожиданная ошибка при получении списка блюд: %s',
-            str(e),
-            extra={'user_id': str(current_user.id)},
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Внутренняя ошибка сервера.',
-        ) from e
+    #     dishes = await crud.get_dishes(
+    #         cafe_id=cafe_id,
+    #         session=session,
+    #         show_all=(show_all if is_staff else False),
+    #     )
+
+    #     if not dishes:
+    #         logger.info(
+    #             'Нет блюд для кафе %s',
+    #             str(cafe_id) if cafe_id else 'всех кафе',
+    #         )
+
+    #     logger.info(
+    #         'Найдено %d блюд для кафе %s',
+    #         len(dishes),
+    #         str(cafe_id) if cafe_id else 'всех кафе',
+    #     )
+
+    #     return [DishInfo.model_validate(b) for b in dishes]
+
+    # except DatabaseError as e:
+    #     logger.error(
+    #         'Ошибка базы данных при получении блюд: %s',
+    #         str(e),
+    #         extra={'user_id': str(current_user.id)},
+    #     )
+    #     raise HTTPException(
+    #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    #         detail='Временная ошибка базы данных. Попробуйте позже.',
+    #     ) from e
+
+    # except Exception as e:
+    #     logger.critical(
+    #         'Неожиданная ошибка при получении списка блюд: %s',
+    #         str(e),
+    #         extra={'user_id': str(current_user.id)},
+    #         exc_info=True,
+    #     )
+    #     raise HTTPException(
+    #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    #         detail='Внутренняя ошибка сервера.',
+    #     ) from e
 
 
 @router.post(
@@ -158,7 +177,7 @@ async def create_dish(
     responses=DISH_GET_BY_ID_RESPONSES,
 )
 async def get_dish_by_id(
-    dish_id: int,
+    dish_id: UUID,
     current_user: User = Depends(require_roles(allow_guest=False)),
     session: AsyncSession = Depends(get_async_session),
 ) -> DishInfo:
