@@ -136,43 +136,27 @@ async def get_dish_by_id(
     session: AsyncSession = Depends(get_async_session),
 ) -> DishInfo:
     """Получение информации о блюде по его ID."""
-    try:
-        crud = crud_dish(session)
-        is_staff = current_user.is_staff()
+    stmt = (
+        select(Dish)
+        .where(Dish.id == dish_id)
+        .options(selectinload(Dish.cafes))
+    )
 
-        # Получаем блюдо по ID
-        dish = await crud.get_dish_by_id(dish_id=dish_id)
+    is_staff = current_user.is_staff()
 
-        # Проверка на наличие блюда
-        if not dish:
-            logger.info('Блюдо с ID %d не найдено', dish_id)
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail='Данные не найдены',
-            )
+    if not is_staff:
+        stmt = stmt.where(Dish.active.is_(True))
 
-        # Если пользователь не является администратором или менеджером,
-        # проверяем статус блюда
-        if not is_staff and not dish.is_active:
-            logger.info(
-                'Доступ к неактивному блюду для пользователя с ID %d',
-                current_user.id,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail='Доступ запрещен',
-            )
+    result = await session.execute(stmt)
+    dish = result.scalar_one_or_none()
 
-        return dish
-
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        logger.error('Ошибка при получении блюда: %s', str(e))
+    if dish is None:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail='Ошибка в параметрах запроса',
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Dish not found",
         )
+
+    return dish
 
 
 @router.patch(

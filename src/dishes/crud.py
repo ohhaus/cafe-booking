@@ -61,7 +61,7 @@ class CRUDDish(DatabaseService[Dish, DishCreate, DishUpdate]):
                 if missing:
                     raise ValueError(f"Не найдены кафе с id: {missing}")
 
-                db_obj.cafes = cafes_list   # назначаем ДО add()
+                db_obj.cafes = cafes_list
 
             session.add(db_obj)
             await session.commit()
