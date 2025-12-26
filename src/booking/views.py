@@ -1,6 +1,6 @@
 from datetime import date
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -8,9 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.booking.crud import BookingCRUD
 from src.booking.exceptions import handle_booking_exceptions
-from src.booking.models import Booking, BookingStatus
 from src.booking.schemas import BookingCreate, BookingInfo, BookingUpdate
-from src.booking.services import create_or_update_booking
+from src.booking.services import (
+    active_pairs,
+    apply_status_is_active,
+    create_or_update_booking,
+)
 from src.booking.validators import (
     validate_booking_db_constraints,
     validate_create_booking,
@@ -228,53 +231,7 @@ async def get_booking_by_id(
         )
 
 
-def _apply_status_is_active(
-    booking: Booking,
-    data: Dict[str, Any],
-) -> None:
-    """Обновляет статус и активность брони с учётом бизнес-логики."""
-    if 'status' in data and data['status'] is not None:
-        new_status: BookingStatus = data['status']
-        old_status: BookingStatus = booking.status
-
-        booking.status = new_status
-
-        if new_status == BookingStatus.CANCELED:
-            if booking.active:
-                booking.active = False
-                booking.cancel_booking()
-        else:
-            if (old_status == BookingStatus.CANCELED) or (not booking.active):
-                booking.active = True
-                booking.restore_booking()
-
-        return
-
-    if 'is_active' in data and data['is_active'] is not None:
-        new_active: bool = bool(data['is_active'])
-        old_active: bool = bool(booking.active)
-
-        if old_active is True and new_active is False:
-            booking.active = False
-            booking.cancel_booking()
-            booking.status = BookingStatus.CANCELED
-        elif old_active is False and new_active is True:
-            booking.active = True
-            booking.restore_booking()
-            if booking.status == BookingStatus.CANCELED:
-                booking.status = BookingStatus.BOOKING
-
-
 Pair = Tuple[UUID, UUID]
-
-
-def _active_pairs(booking: Booking) -> list[Pair]:
-    """Возвращает список активных пар (table_id, slot_id) для бронирования."""
-    return [
-        (bts.table_id, bts.slot_id)
-        for bts in booking.booking_table_slots
-        if bts.active
-    ]
 
 
 @router.patch('/{booking_id}', response_model=BookingInfo)
@@ -331,7 +288,7 @@ async def patch_booking(
             booking.guest_number,
         )
 
-        current_pairs = _active_pairs(booking)
+        current_pairs = active_pairs(booking)
 
         incoming_pairs: Optional[list[Pair]] = None
         replace_tables_slots = 'tables_slots' in data
@@ -374,7 +331,7 @@ async def patch_booking(
                 current_user=current_user,
                 exclude_booking_id=booking.id,
                 check_taken=True,
-                require_tables_slots=False,
+                require_tables_slots=True,
             )
 
         if need_capacity_check and effective_pairs:
@@ -400,7 +357,7 @@ async def patch_booking(
             ),
         )
 
-        _apply_status_is_active(updated, data)
+        apply_status_is_active(updated, data)
 
         await db.commit()
         await db.refresh(

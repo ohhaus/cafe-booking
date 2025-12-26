@@ -71,11 +71,14 @@ async def validate_booking_db_constraints(
         )
 
     # Вместимость
-    if not await crud.check_capacity(list(unique_table_ids), guest_number):
+    if not require_tables_slots and not await crud.check_capacity(
+        list(table_ids),
+        guest_number,
+    ):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f'Количество гостей {guest_number} превышает вместимость '
-            f'столов',
+            detail=f'Количество гостей {guest_number} превышает '
+            f'вместимость столов',
         )
 
     # Занятость
