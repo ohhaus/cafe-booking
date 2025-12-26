@@ -21,7 +21,7 @@ def create_error_response(
             'description': description,
             'content': {
                 'application/json': {
-                    'schema': CustomErrorResponse.schema(),
+                    'schema': CustomErrorResponse.model_json_schema(),
                 },
             },
         },
@@ -37,13 +37,12 @@ CREATED_RESPONSE: Dict[int | str, Dict[str, Any]] = {
         'description': 'Успешно',
         'content': {
             'application/json': {
-                'schema': DishInfo.schema(),
+                'schema': DishInfo.model_json_schema(),
             },
         },
     },
 }
 
-# --- Базовые ошибки ---
 ERROR_400_RESPONSE = create_error_response(
     HTTPStatus.BAD_REQUEST,
     'Ошибка в параметрах запроса',
