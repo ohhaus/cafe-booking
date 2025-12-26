@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
+    Index,
     String,
     Time,
 )
@@ -66,5 +67,12 @@ class Slot(Base):
         CheckConstraint(
             'start_time < end_time',
             name='slot_start_before_end',
+        ),
+        Index(
+            'ux_sliot_cafe_start_end',
+            'cafe_id',
+            'start_time',
+            'end_time',
+            unique=True,
         ),
     )
