@@ -1,98 +1,199 @@
-"""Стандартные ответы API.
+"""Фабрика ответов API.
 
-Содержит предопределенные ответы для различных HTTP статус кодов,
-используемые в эндпоинтах API для обеспечения консистентности.
+Формирует пресеты ответов API.
 """
 
 from http import HTTPStatus
-from typing import Any, Dict
+from typing import Any, Dict, Iterable, Optional, Type
+
+from pydantic import BaseModel
 
 from src.common.schemas import CustomErrorResponse
-from src.dishes.schemas import DishInfo
 
 
-def create_error_response(
+def error_response(
     status_code: HTTPStatus,
     description: str,
-) -> Dict[int | str, Dict[str, Any]]:
-    """Создает шаблон ответа об ошибке с заданным статусом и описанием."""
+    model: Type[BaseModel] = CustomErrorResponse,
+) -> Dict[int, Dict[str, Any]]:
+    """Сформировать шаблон ответа для ошибки в формате FastAPI `responses`.
+
+    Используется для унификации описаний ошибок в OpenAPI и повторного
+    применения в разных эндпоинтах.
+    """
     return {
         status_code.value: {
             'description': description,
             'content': {
                 'application/json': {
-                    'schema': CustomErrorResponse.model_json_schema(),
+                    'schema': model.model_json_schema(),
                 },
             },
         },
     }
 
 
-OK_RESPONSES: Dict[int | str, Dict[str, Any]] = {
+def success_response(
+    status: HTTPStatus,
+    model: Type[BaseModel],
+    description: str = 'Успешно',
+) -> Dict[int, Dict[str, Any]]:
+    """Сформировать шаблон успешного ответа в формате FastAPI `responses`.
+
+    Обычно используется для документирования ответов, содержащих тело JSON
+    с объектом (например, 201 Created с созданной сущностью).
+    """
+    return {
+        status.value: {
+            'description': description,
+            'content': {
+                'application/json': {
+                    'schema': model.model_json_schema(),
+                },
+            },
+        },
+    }
+
+
+OK_RESPONSES = {
     HTTPStatus.OK.value: {'description': 'Успешно'},
 }
 
-CREATED_RESPONSE: Dict[int | str, Dict[str, Any]] = {
-    HTTPStatus.CREATED.value: {
-        'description': 'Успешно',
-        'content': {
-            'application/json': {
-                'schema': DishInfo.model_json_schema(),
-            },
-        },
-    },
-}
-
-ERROR_400_RESPONSE = create_error_response(
+ERROR_400 = error_response(
     HTTPStatus.BAD_REQUEST,
     'Ошибка в параметрах запроса',
 )
-
-ERROR_401_RESPONSE = create_error_response(
+ERROR_401 = error_response(
     HTTPStatus.UNAUTHORIZED,
     'Неавторизированный пользователь',
 )
-
-ERROR_403_RESPONSE = create_error_response(
+ERROR_403 = error_response(
     HTTPStatus.FORBIDDEN,
     'Доступ запрещен',
 )
-
-ERROR_404_RESPONSE = create_error_response(
+ERROR_404 = error_response(
     HTTPStatus.NOT_FOUND,
     'Данные не найдены',
 )
-
-ERROR_422_RESPONSE = create_error_response(
+ERROR_422 = error_response(
     HTTPStatus.UNPROCESSABLE_ENTITY,
     'Ошибка валидации данных',
 )
 
-DISH_GET_RESPONSES: Dict[int | str, Dict[str, Any]] = {
-    **OK_RESPONSES,
-    **ERROR_401_RESPONSE,
-    **ERROR_422_RESPONSE,
+
+Responses = Dict[int, Dict[str, Any]]
+
+_ERROR_BY_STATUS: dict[HTTPStatus, Responses] = {
+    HTTPStatus.BAD_REQUEST: ERROR_400,
+    HTTPStatus.UNAUTHORIZED: ERROR_401,
+    HTTPStatus.FORBIDDEN: ERROR_403,
+    HTTPStatus.NOT_FOUND: ERROR_404,
+    HTTPStatus.UNPROCESSABLE_ENTITY: ERROR_422,
 }
 
-DISH_CREATE_RESPONSES: Dict[int | str, Dict[str, Any]] = {
-    **CREATED_RESPONSE,
-    **ERROR_400_RESPONSE,
-    **ERROR_401_RESPONSE,
-    **ERROR_403_RESPONSE,
-    **ERROR_422_RESPONSE,
-}
 
-DISH_GET_BY_ID_RESPONSES: Dict[int | str, Dict[str, Any]] = {
-    **OK_RESPONSES,
-    **ERROR_400_RESPONSE,
-    **ERROR_401_RESPONSE,
-    **ERROR_403_RESPONSE,
-    **ERROR_404_RESPONSE,
-    **ERROR_422_RESPONSE,
-}
+def make_responses(
+    *,
+    ok: bool = True,
+    created_model: Optional[Type[BaseModel]] = None,
+    errors: Iterable[HTTPStatus] = (),
+) -> Responses:
+    """Собрать итоговый словарь `responses` из предопределённых частей.
 
-LOGIN_RESPONSES: Dict[int | str, Dict[str, Any]] = {
-    **OK_RESPONSES,
-    **ERROR_422_RESPONSE,
-    **ERROR_403_RESPONSE,
-}
+    Позволяет декларативно собрать набор ответов:
+    - опционально добавить 200 OK (только description);
+    - опционально добавить 201 Created с указанной Pydantic-моделью;
+    - добавить набор стандартных ошибок из `errors`.
+    """
+    resp = {}
+
+    if ok:
+        resp.update(OK_RESPONSES)
+
+    if created_model is not None:
+        resp.update(success_response(HTTPStatus.CREATED, created_model))
+
+    for status in errors:
+        try:
+            resp.update(_ERROR_BY_STATUS[status])
+        except KeyError as e:
+            raise ValueError(
+                f'Unsupported error status: {status}',
+            ) from e
+    return resp
+
+
+def list_responses() -> Responses:
+    """Получить пресет `responses` для эндпоинтов получения списка.
+
+    (обычно GET /resource)
+    Включает типовые ошибки авторизации и валидации входных параметров.
+
+    Returns:
+        Набор `responses`, подходящий для list-endpoint'ов.
+
+    """
+    return make_responses(
+        errors=(
+            HTTPStatus.UNAUTHORIZED,
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+        ),
+    )
+
+
+def create_responses(model: Type[BaseModel]) -> Responses:
+    """Получить пресет `responses` для эндпоинтов создания ресурса.
+
+    (обычно POST /resource)
+    Включает:
+    - 201 Created со схемой `model`;
+    - типовые ошибки: 400/401/403/422.
+    200 OK намеренно не добавляется (`ok=False`),
+    чтобы документация не выглядела двусмысленно.
+    """
+    return make_responses(
+        ok=False,
+        created_model=model,
+        errors=(
+            HTTPStatus.BAD_REQUEST,
+            HTTPStatus.UNAUTHORIZED,
+            HTTPStatus.FORBIDDEN,
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+        ),
+    )
+
+
+def retrieve_responses() -> Responses:
+    """Получить пресет `responses` для получения/обновления одного ресурса.
+
+    (GET/PATCH /resource/{id})
+    Включает типовые ошибки:
+    - 400 (плохие параметры),
+    - 401/403 (доступ),
+    - 404 (ресурс не найден),
+    - 422 (валидация).
+    """
+    return make_responses(
+        errors=(
+            HTTPStatus.BAD_REQUEST,
+            HTTPStatus.UNAUTHORIZED,
+            HTTPStatus.FORBIDDEN,
+            HTTPStatus.NOT_FOUND,
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+        ),
+    )
+
+
+def login_responses() -> Responses:
+    """Получить пресет `responses` для эндпоинтов аутентификации.
+
+    Включает ошибки, которые могут возникать при попытке логина:
+    - 403 (доступ запрещён),
+    - 422 (ошибка валидации данных).
+    """
+    return make_responses(
+        errors=(
+            HTTPStatus.FORBIDDEN,
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+        ),
+    )

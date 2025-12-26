@@ -10,6 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.cafes.service import is_admin_or_manager
 from src.database.sessions import get_async_session
 from src.slots.crud import SlotService
+from src.slots.responses import (
+    CREATE_RESPONSES,
+    GET_BY_ID_RESPONSES,
+    GET_RESPONSES,
+)
 from src.slots.schemas import (
     TimeSlotCreate,
     TimeSlotUpdate,
@@ -33,12 +38,7 @@ logger = logging.getLogger('app')
         'Для администраторов и менеджеров - все слоты '
         '(с возможностью выбора), для пользователей - только активные.'
     ),
-    responses={
-        200: {'description': 'Успешно'},
-        401: {'description': 'Неавторизированный пользователь'},
-        404: {'description': 'Данные не найдены'},
-        422: {'description': 'Ошибка валидации данных'},
-    },
+    responses=GET_RESPONSES,
 )
 async def get_time_slots(
     cafe_id: UUID,
@@ -136,14 +136,7 @@ async def get_time_slots(
     response_model=TimeSlotWithCafeInfo,
     status_code=status.HTTP_201_CREATED,
     summary='Создание нового временного слота в кафе',
-    responses={
-        201: {'description': 'Успешно'},
-        400: {'description': 'Ошибка в параметрах запроса'},
-        401: {'description': 'Неавторизированный пользователь'},
-        403: {'description': 'Доступ запрещен'},
-        404: {'description': 'Данные не найдены'},
-        422: {'description': 'Ошибка валидации данных'},
-    },
+    responses=CREATE_RESPONSES,
 )
 async def create_time_slot(
     cafe_id: UUID,
@@ -299,14 +292,7 @@ async def create_time_slot(
     '/{cafe_id}/time_slots/{slot_id}',
     response_model=TimeSlotWithCafeInfo,
     summary='Получение информации о временном слоте по ID',
-    responses={
-        200: {'description': 'Успешно'},
-        400: {'description': 'Ошибка в параметрах запроса'},
-        401: {'description': 'Неавторизированный пользователь'},
-        403: {'description': 'Доступ запрещен'},
-        404: {'description': 'Данные не найдены'},
-        422: {'description': 'Ошибка валидации данных'},
-    },
+    responses=GET_BY_ID_RESPONSES,
 )
 async def get_time_slot_by_id(
     cafe_id: UUID,
@@ -406,14 +392,7 @@ async def get_time_slot_by_id(
     '/{cafe_id}/time_slots/{slot_id}',
     response_model=TimeSlotWithCafeInfo,
     summary='Обновление информации о временном слоте по ID',
-    responses={
-        200: {'description': 'Успешно'},
-        400: {'description': 'Ошибка в параметрах запроса'},
-        401: {'description': 'Неавторизированный пользователь'},
-        403: {'description': 'Доступ запрещен'},
-        404: {'description': 'Данные не найдены'},
-        422: {'description': 'Ошибка валидации данных'},
-    },
+    responses=GET_BY_ID_RESPONSES,
 )
 async def update_time_slot(
     cafe_id: UUID,

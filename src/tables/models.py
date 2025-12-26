@@ -9,9 +9,9 @@ from sqlalchemy.orm import (
     relationship,
 )
 
-from src.booking import BookingTableSlot
+from src.booking.models import BookingTableSlot
 from src.config import MAX_DESCRIPTION_LENGTH
-from src.database import Base
+from src.database.base import Base
 
 
 if TYPE_CHECKING:

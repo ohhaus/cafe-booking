@@ -104,11 +104,9 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
         session: AsyncSession,
         *,
         include_inactive: bool,
-        skip: int = 0,
-        limit: int = 100,
     ) -> list[Cafe]:
         """Получение списка кафе."""
-        stmt = self._stmt_with_managers().offset(skip).limit(limit)
+        stmt = self._stmt_with_managers()
         if not include_inactive:
             stmt = stmt.where(Cafe.active.is_(True))
 

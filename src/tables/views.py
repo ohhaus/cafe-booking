@@ -10,6 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.cafes.service import is_admin_or_manager
 from src.database.sessions import get_async_session
 from src.tables.crud import TableService
+from src.tables.responses import (
+    CREATE_RESPONSES,
+    GET_BY_ID_RESPONSES,
+    GET_RESPONSES,
+)
 from src.tables.schemas import (
     TableCreate,
     TableUpdate,
@@ -34,12 +39,7 @@ logger = logging.getLogger('app')
         'Для администраторов и менеджеров - все столы '
         '(с возможностью выбора), для пользователей - только активные.'
     ),
-    responses={
-        200: {'description': 'Успешно'},
-        401: {'description': 'Неавторизированный пользователь'},
-        404: {'description': 'Данные не найдены'},
-        422: {'description': 'Ошибка валидации данных'},
-    },
+    responses=GET_RESPONSES,
 )
 async def get_tables(
     cafe_id: UUID,
@@ -145,14 +145,7 @@ async def get_tables(
     response_model_by_alias=True,
     status_code=status.HTTP_201_CREATED,
     summary='Создание нового стола в кафе',
-    responses={
-        201: {'description': 'Успешно'},
-        400: {'description': 'Ошибка в параметрах запроса'},
-        401: {'description': 'Неавторизированный пользователь'},
-        403: {'description': 'Доступ запрещен'},
-        404: {'description': 'Данные не найдены'},
-        422: {'description': 'Ошибка валидации данных'},
-    },
+    responses=CREATE_RESPONSES,
 )
 async def create_table(
     cafe_id: UUID,
@@ -329,13 +322,7 @@ async def create_table(
     response_model=TableWithCafeInfo,
     response_model_by_alias=True,
     summary='Получение информации о столе по ID',
-    responses={
-        200: {'description': 'Успешно'},
-        401: {'description': 'Неавторизированный пользователь'},
-        403: {'description': 'Доступ запрещен'},
-        404: {'description': 'Данные не найдены'},
-        422: {'description': 'Ошибка валидации данных'},
-    },
+    responses=GET_BY_ID_RESPONSES,
 )
 async def get_table_by_id(
     cafe_id: UUID,
@@ -436,14 +423,7 @@ async def get_table_by_id(
     response_model=TableWithCafeInfo,
     response_model_by_alias=True,
     summary='Обновление информации о столе по ID',
-    responses={
-        200: {'description': 'Успешно'},
-        400: {'description': 'Ошибка в параметрах запроса'},
-        401: {'description': 'Неавторизированный пользователь'},
-        403: {'description': 'Доступ запрещен'},
-        404: {'description': 'Данные не найдены'},
-        422: {'description': 'Ошибка валидации данных'},
-    },
+    responses=GET_BY_ID_RESPONSES,
 )
 async def update_table(
     cafe_id: UUID,
