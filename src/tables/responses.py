@@ -8,12 +8,12 @@ from src.common.errors import (
     ERROR_422,
 )
 from src.common.responses import OK_RESPONSES, success_response
-from src.dishes.schemas import DishInfo
+from src.tables.schemas import TableInfo
 
 
 CREATED_RESPONSE = success_response(
     HTTPStatus.CREATED,
-    DishInfo,
+    TableInfo,
 )
 
 

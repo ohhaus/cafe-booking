@@ -1,5 +1,6 @@
 from http import HTTPStatus
 
+from src.cafes.schemas import CafeInfo
 from src.common.errors import (
     ERROR_400,
     ERROR_401,
@@ -8,12 +9,11 @@ from src.common.errors import (
     ERROR_422,
 )
 from src.common.responses import OK_RESPONSES, success_response
-from src.dishes.schemas import DishInfo
 
 
 CREATED_RESPONSE = success_response(
     HTTPStatus.CREATED,
-    DishInfo,
+    CafeInfo,
 )
 
 

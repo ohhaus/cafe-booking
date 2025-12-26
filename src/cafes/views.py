@@ -8,6 +8,11 @@ from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.cafes.crud import CafeService
+from src.cafes.responses import (
+    CREATE_RESPONSES,
+    GET_BY_ID_RESPONSES,
+    GET_RESPONSES,
+)
 from src.cafes.schemas import CafeCreate, CafeInfo, CafeUpdate
 from src.cafes.service import is_admin_or_manager
 from src.database.sessions import get_async_session
@@ -25,13 +30,7 @@ logger = logging.getLogger('app')
     response_model=CafeInfo,
     status_code=status.HTTP_201_CREATED,
     summary='Создание нового кафе.',
-    responses={
-        201: {'description': 'Успешно'},
-        400: {'description': 'Ошибка в параметрах запроса'},
-        401: {'description': 'Неавторизированный пользователь'},
-        403: {'description': 'Доступ запрещен'},
-        422: {'description': 'Ошибка валидации данных'},
-    },
+    responses=GET_RESPONSES,
 )
 async def create_cafe(
     cafe_data: CafeCreate,
@@ -137,11 +136,7 @@ async def create_cafe(
         'Получение списка кафе. Для администраторов и менеджеров - все кафе'
         '(с возможностью выбора), для пользователей - только активные.'
     ),
-    responses={
-        200: {'description': 'Успешно'},
-        401: {'description': 'Неавторизированный пользователь'},
-        422: {'description': 'Ошибка валидации данных'},
-    },
+    responses=CREATE_RESPONSES,
 )
 async def get_all_cafes(
     show_all: Optional[bool] = Query(
@@ -221,13 +216,7 @@ async def get_all_cafes(
     '/{cafe_id}',
     response_model=CafeInfo,
     summary='Получение информации о кафе по его ID',
-    responses={
-        200: {'description': 'Успешно'},
-        401: {'description': 'Неавторизированный пользователь'},
-        403: {'description': 'Доступ запрещен'},
-        404: {'description': 'Данные не найдены'},
-        422: {'description': 'Ошибка валидации данных'},
-    },
+    responses=GET_BY_ID_RESPONSES,
 )
 async def get_cafe_by_id(
     cafe_id: UUID,
@@ -313,14 +302,7 @@ async def get_cafe_by_id(
     '/{cafe_id}',
     response_model=CafeInfo,
     summary='Обновление информации о кафе по его ID',
-    responses={
-        200: {'description': 'Успешно'},
-        400: {'description': 'Ошибка в параметрах запроса'},
-        401: {'description': 'Неавторизированный пользователь'},
-        403: {'description': 'Доступ запрещен'},
-        404: {'description': 'Данные не найдены'},
-        422: {'description': 'Ошибка валидации данных'},
-    },
+    responses=GET_BY_ID_RESPONSES,
 )
 async def update_cafe(
     cafe_id: UUID,

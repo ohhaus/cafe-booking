@@ -1,26 +1,47 @@
-"""Стандартные ответы API.
+"""Фабрика ответов API.
 
 Содержит предопределенные ответы для различных HTTP статус кодов,
 используемые в эндпоинтах API для обеспечения консистентности.
 """
 
 from http import HTTPStatus
-from typing import Any, Dict
+from typing import Any, Dict, Type
+
+from pydantic import BaseModel
 
 from src.common.schemas import CustomErrorResponse
-from src.dishes.schemas import DishInfo
 
 
-def create_error_response(
-        status_code: HTTPStatus, description: str,
-        ) -> Dict[int, Dict[str, Any]]:
+def error_response(
+    status_code: HTTPStatus,
+    description: str,
+    model: Type[BaseModel] = CustomErrorResponse,
+) -> Dict[int, Dict[str, Any]]:
     """Создает шаблон ответа об ошибке с заданным статусом и описанием."""
     return {
         status_code.value: {
-            "message": description,
-            "content": {
-                "application/json": {
-                    "schema": CustomErrorResponse.schema(),
+            'description': description,
+            'content': {
+                'application/json': {
+                    'schema': model.model_json_schema(),
+                },
+            },
+        },
+    }
+
+
+def success_response(
+    status: HTTPStatus,
+    model: Type[BaseModel],
+    description: str = 'Успешно',
+) -> Dict[int, Dict[str, Any]]:
+    """Создает шаблон ответа о успешном создании объекта."""
+    return {
+        status.value: {
+            'description': description,
+            'content': {
+                'application/json': {
+                    'schema': model.model_json_schema(),
                 },
             },
         },
@@ -28,59 +49,5 @@ def create_error_response(
 
 
 OK_RESPONSES = {
-    HTTPStatus.OK.value: {"description": "Успешно"},
+    HTTPStatus.OK.value: {'description': 'Успешно'},
 }
-
-CREATED_RESPONSE = {
-    HTTPStatus.CREATED.value: {
-        "description": "Успешно",
-        "content": {
-            "application/json": {
-                "schema": DishInfo.schema(),
-            },
-        },
-    },
-}
-
-ERROR_400_RESPONSE = create_error_response(
-    HTTPStatus.BAD_REQUEST,
-    "Ошибка в параметрах запроса",
-)
-
-ERROR_401_RESPONSE = create_error_response(
-    HTTPStatus.UNAUTHORIZED,
-    "Неавторизированный пользователь",
-)
-
-ERROR_403_RESPONSE = create_error_response(
-    HTTPStatus.FORBIDDEN,
-    "Доступ запрещен",
-)
-
-ERROR_404_RESPONSE = create_error_response(
-    HTTPStatus.NOT_FOUND,
-    "Данные не найдены",
-)
-
-ERROR_422_RESPONSE = create_error_response(
-    HTTPStatus.UNPROCESSABLE_ENTITY,
-    "Ошибка валидации данных",
-)
-
-# --- Ответы для Блюд ---
-DISH_GET_RESPONSES = {**OK_RESPONSES,
-                      **ERROR_401_RESPONSE,
-                      **ERROR_422_RESPONSE}
-
-DISH_CREATE_RESPONSES = {**CREATED_RESPONSE,
-                         **ERROR_400_RESPONSE,
-                         **ERROR_401_RESPONSE,
-                         **ERROR_403_RESPONSE,
-                         **ERROR_422_RESPONSE}
-
-DISH_GET_BY_ID_RESPONSES = {**CREATED_RESPONSE,
-                            **ERROR_400_RESPONSE,
-                            **ERROR_401_RESPONSE,
-                            **ERROR_403_RESPONSE,
-                            **ERROR_404_RESPONSE,
-                            **ERROR_422_RESPONSE}
