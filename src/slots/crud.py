@@ -186,7 +186,10 @@ class SlotService(DatabaseService[Slot, TimeSlotCreateDB, TimeSlotUpdate]):
         if not slot:
             return None
 
-        payload = data.model_dump(exclude_unset=True)
+        payload = data.model_dump(
+            exclude_unset=True,
+            by_alias=False,
+        )
 
         new_start = payload.get('start_time', slot.start_time)
         new_end = payload.get('end_time', slot.end_time)
