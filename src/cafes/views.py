@@ -146,8 +146,6 @@ async def get_all_cafes(
             'Показывать все кафе или нет. По умолчанию показывает все кафе'
         ),
     ),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
     current_user: User = Depends(require_roles(allow_guest=False)),
     db: AsyncSession = Depends(get_async_session),
 ) -> list[CafeInfo]:
@@ -166,17 +164,12 @@ async def get_all_cafes(
         cafes = await crud.get_list_cafe(
             db,
             include_inactive=include_inactive,
-            skip=skip,
-            limit=limit,
         )
         logger.info(
-            'GET /cafes: найдено %d (include_inactive=%s, '
-            'show_all=%s, skip=%d, limit=%d)',
+            'GET /cafes: найдено %d (include_inactive=%s, show_all=%s)',
             len(cafes),
             include_inactive,
             show_all,
-            skip,
-            limit,
             extra={'user_id': str(current_user.id)},
         )
 
