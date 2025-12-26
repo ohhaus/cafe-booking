@@ -30,7 +30,7 @@ logger = logging.getLogger('app')
     response_model=CafeInfo,
     status_code=status.HTTP_201_CREATED,
     summary='Создание нового кафе.',
-    responses=GET_RESPONSES,
+    responses=CREATE_RESPONSES,
 )
 async def create_cafe(
     cafe_data: CafeCreate,
@@ -136,7 +136,7 @@ async def create_cafe(
         'Получение списка кафе. Для администраторов и менеджеров - все кафе'
         '(с возможностью выбора), для пользователей - только активные.'
     ),
-    responses=CREATE_RESPONSES,
+    responses=GET_RESPONSES,
 )
 async def get_all_cafes(
     show_all: Optional[bool] = Query(
