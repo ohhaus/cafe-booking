@@ -1,15 +1,14 @@
 # src/dishes/views.py
 import logging
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import Sequence, select
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.cafes.models import Cafe
-from src.common.logging.decorators import log_action
 from src.database.sessions import get_async_session
 from src.dishes.crud import crud_dish
 from src.dishes.models import Dish
@@ -30,7 +29,7 @@ logger = logging.getLogger('app')
 
 
 @router.get(
-    '/test_get_all_dishes',
+    '/',
     response_model=List[DishInfo],
     summary='Получение списка блюд',
     description=(
@@ -47,68 +46,42 @@ async def get_all_dishes(
     current_user: User | None = Depends(
         require_roles(
             [UserRole.MANAGER, UserRole.ADMIN],
-            allow_guest=True,
+            allow_guest=False,
         ),
     ),
     session: AsyncSession = Depends(get_async_session)
 ) -> list[DishInfo]:
-    """Получает все блюда."""
-    dishes = await dish_service.get_multi(
-        session=session,
-        relationships=["cafes"]
+    """Получение списка блюд с возможностью фильтрации."""
+
+    logger.info(
+        'Пользователь %s запросил все блюда с фильтрами: '
+        'show_all=%s, cafe_id=%s',
+        current_user.id,
+        show_all,
+        cafe_id,
+        extra={'user_id': str(current_user.id)},
     )
 
-    return [
-        DishInfo.model_validate(dish, from_attributes=True)
-        for dish in dishes
-    ]
+    can_view_all = (
+        current_user is not None
+        and current_user.role in (UserRole.ADMIN, UserRole.MANAGER)
+    )
 
+    filters = []
 
-@router.get(
-    '/',
-    response_model=List[DishInfo],
-    summary='Получение списка блюд',
-    description=(
-        'Получение списка блюд. '
-        'Для администраторов и менеджеров - '
-        'все блюда (с возможностью выбора),'
-        ' для пользователей - только активные.'
-        ),
-    responses=DISH_GET_RESPONSES,
-)
-async def get_dishes(
-    show_all: bool = Query(
-        False,
-        title='Показывать все блюда?',
-        description='Показывать все блюда или нет. '
-        'По умолчанию показывает все блюда',
-    ),
-    cafe_id: Optional[UUID] = Query(
-        None,
-        title='Cafe Id',
-        description='ID кафе, в котором показывать блюда. '
-        'Если не задано - показывает все блюда во всех кафе',
-    ),
-    current_user: User = Depends(require_roles(allow_guest=False)),
-    session: AsyncSession = Depends(get_async_session),
-) -> List[DishInfo]:
-    """Получение списка блюд."""
-    stmt = select(Dish).options(selectinload(Dish.cafes))
+    if not (can_view_all and show_all):
+        filters.append(Dish.active.is_(True))
 
     if cafe_id is not None:
-        stmt = stmt.join(Dish.cafes).where(Cafe.id == cafe_id)
+        filters.append(Dish.cafes.any(Cafe.id == cafe_id))
 
-    is_staff = current_user.is_staff()
+    dishes = await dish_service.get_multi(
+        session=session,
+        filters=filters,
+        relationships=["cafes"],
+    )
 
-    if is_staff:
-        if not show_all:
-            stmt = stmt.where(Dish.active.is_(True))
-    else:
-        stmt = stmt.where(Dish.active.is_(True))
-
-    result = await session.execute(stmt)
-
-    return result.scalars().unique().all()
+    return [DishInfo.model_validate(d, from_attributes=True) for d in dishes]
 
 
 @router.post(

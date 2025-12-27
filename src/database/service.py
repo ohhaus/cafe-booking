@@ -4,7 +4,7 @@
 from typing import Any, Generic, Sequence, Type, TypeVar
 
 from pydantic import BaseModel
-from sqlalchemy import and_, exists, func, select
+from sqlalchemy import Select, and_, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -56,27 +56,54 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         )
         return result.scalars().first()
 
+    def _build_options(self, relationships: Sequence[str] | None):
+        if not relationships:
+            return []
+
+        opts = []
+        for rel_name in relationships:
+            attr = getattr(self.model, rel_name, None)
+            if attr is None:
+                raise ValueError(
+                    f"Relationship {rel_name} not found"
+                    f" on model {self.model.__name__}"
+                )
+            # selectinload ожидает атрибут relationship, а не строку
+            opts.append(selectinload(attr))
+        return opts
+
     async def get_multi(
         self,
         session: AsyncSession,
         *,
-        skip: int = 0,
+        filters: Sequence | None = None,
+        relationships: Sequence[str] | None = None,
+        order_by: Sequence | None = None,
+        offset: int = 0,
         limit: int = 100,
-        relationships: list[str] | None = None,
-    ) -> Sequence[ModelType]:
-        """Получает список объектов с опциональной загрузкой связей."""
+    ) -> list[ModelType]:
+        stmt: Select = select(self.model)
 
-        query = select(self.model).offset(skip).limit(limit)
+        # Подгружаем связи (selectinload) — удобно для many-to-many и one-to-M
+        options = self._build_options(relationships)
+        if options:
+            stmt = stmt.options(*options)
 
-        if relationships:
-            for rel in relationships:
-                if hasattr(self.model, rel):
-                    query = query.options(
-                        selectinload(getattr(self.model, rel))
-                        )
+        # Фильтры
+        if filters:
+            stmt = stmt.where(*filters)
 
-        result = await session.execute(query)
-        return result.scalars().all()
+        # Сортировка
+        if order_by:
+            stmt = stmt.order_by(*order_by)
+
+        # Пагинация
+        stmt = stmt.offset(offset).limit(limit)
+
+        result = await session.execute(stmt)
+
+        # unique() важен при подгрузке relationship, чтобы не ловить дубликаты
+        return list(result.scalars().unique().all())
 
     async def create(
         self,
