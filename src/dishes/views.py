@@ -112,7 +112,7 @@ async def create_dish(
     try:
         new_dish = await dish_service.create_dish(
             session=session,
-            obj_in=dish_in
+            obj_in=dish_in,
             )
         return DishInfo.model_validate(new_dish)
 
