@@ -1,3 +1,4 @@
+# src/database/service.py
 """Базовый сервисный слой для работы с БД."""
 
 from typing import Any, Generic, Sequence, Type, TypeVar
@@ -5,6 +6,7 @@ from typing import Any, Generic, Sequence, Type, TypeVar
 from pydantic import BaseModel
 from sqlalchemy import and_, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.database.base import Base
 
@@ -60,21 +62,20 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         *,
         skip: int = 0,
         limit: int = 100,
+        relationships: list[str] | None = None,
     ) -> Sequence[ModelType]:
-        """Получает список объектов с пагинацией.
+        """Получает список объектов с опциональной загрузкой связей."""
 
-        Args:
-            session: Асинхронная сессия БД
-            skip: Количество пропускаемых записей
-            limit: Максимальное количество возвращаемых записей
+        query = select(self.model).offset(skip).limit(limit)
 
-        Returns:
-            Последовательность объектов модели
+        if relationships:
+            for rel in relationships:
+                if hasattr(self.model, rel):
+                    query = query.options(
+                        selectinload(getattr(self.model, rel))
+                        )
 
-        """
-        result = await session.execute(
-            select(self.model).offset(skip).limit(limit),
-        )
+        result = await session.execute(query)
         return result.scalars().all()
 
     async def create(

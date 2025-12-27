@@ -1,13 +1,15 @@
+# src/dishes/views.py
 import logging
 from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import Sequence, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.cafes.models import Cafe
+from src.common.logging.decorators import log_action
 from src.database.sessions import get_async_session
 from src.dishes.crud import crud_dish
 from src.dishes.models import Dish
@@ -17,15 +19,49 @@ from src.dishes.responses import (
     DISH_GET_RESPONSES,
 )
 from src.dishes.schemas import DishCreate, DishInfo, DishUpdate
-from src.dishes.services import DishService
+from src.dishes.services import dish_service
 from src.dishes.validators import check_exists_cafes_ids
 from src.users.dependencies import require_roles
-from src.users.models import User
+from src.users.models import User, UserRole
 
 
 router = APIRouter()
 logger = logging.getLogger('app')
-dish_service = DishService()
+
+
+@router.get(
+    '/test_get_all_dishes',
+    response_model=List[DishInfo],
+    summary='Получение списка блюд',
+    description=(
+        'Получение списка блюд. '
+        'Для администраторов и менеджеров - '
+        'все блюда (с возможностью выбора),'
+        ' для пользователей - только активные.'
+        ),
+    responses=DISH_GET_RESPONSES,
+)
+async def get_all_dishes(
+    show_all: bool = False,
+    cafe_id: int | None = None,
+    current_user: User | None = Depends(
+        require_roles(
+            [UserRole.MANAGER, UserRole.ADMIN],
+            allow_guest=True,
+        ),
+    ),
+    session: AsyncSession = Depends(get_async_session)
+) -> list[DishInfo]:
+    """Получает все блюда."""
+    dishes = await dish_service.get_multi(
+        session=session,
+        relationships=["cafes"]
+    )
+
+    return [
+        DishInfo.model_validate(dish, from_attributes=True)
+        for dish in dishes
+    ]
 
 
 @router.get(
