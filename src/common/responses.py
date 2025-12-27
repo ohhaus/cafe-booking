@@ -24,11 +24,7 @@ def error_response(
     return {
         status_code.value: {
             'description': description,
-            'content': {
-                'application/json': {
-                    'schema': model.model_json_schema(),
-                },
-            },
+            'model': model,
         },
     }
 
@@ -46,11 +42,7 @@ def success_response(
     return {
         status.value: {
             'description': description,
-            'content': {
-                'application/json': {
-                    'schema': model.model_json_schema(),
-                },
-            },
+            'model': model,
         },
     }
 

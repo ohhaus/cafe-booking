@@ -97,6 +97,7 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
             await sync_cafe_managers(session, cafe, managers_ids)
 
         await session.commit()
+        await session.refresh(cafe)
         return await self._get_with_managers_by_id(session, cafe.id)
 
     async def get_list_cafe(
