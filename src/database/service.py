@@ -56,7 +56,18 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         )
         return result.scalars().first()
 
-    def _build_options(self, relationships: Sequence[str] | None):
+    def _build_options(
+            self,
+            relationships: Sequence[str] | None,
+            ) -> list:
+        """Строит список опций для подгрузки связей.
+
+        Args:
+            relationships: Список имён связей для подгрузки
+        Returns:
+            Список опций для SQLAlchemy запроса
+
+        """
         if not relationships:
             return []
 
@@ -66,9 +77,8 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             if attr is None:
                 raise ValueError(
                     f"Relationship {rel_name} not found"
-                    f" on model {self.model.__name__}"
+                    f" on model {self.model.__name__}",
                 )
-            # selectinload ожидает атрибут relationship, а не строку
             opts.append(selectinload(attr))
         return opts
 
@@ -82,6 +92,19 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         offset: int = 0,
         limit: int = 100,
     ) -> list[ModelType]:
+        """Получает список объектов с опциональными фильтрами и связями.
+
+        Args:
+            session: Асинхронная сессия БД
+            filters: Список условий для фильтрации
+            relationships: Список имён связей для подгрузки
+            order_by: Список условий для сортировки
+            offset: Смещение для пагинации
+            limit: Лимит на количество возвращаемых записей
+        Returns:
+            Список объектов модели
+
+        """
         stmt: Select = select(self.model)
 
         # Подгружаем связи (selectinload) — удобно для many-to-many и one-to-M

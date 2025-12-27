@@ -49,10 +49,9 @@ async def get_all_dishes(
             allow_guest=False,
         ),
     ),
-    session: AsyncSession = Depends(get_async_session)
+    session: AsyncSession = Depends(get_async_session),
 ) -> list[DishInfo]:
     """Получение списка блюд с возможностью фильтрации."""
-
     logger.info(
         'Пользователь %s запросил все блюда с фильтрами: '
         'show_all=%s, cafe_id=%s',
@@ -145,7 +144,6 @@ async def get_dish_by_id(
     session: AsyncSession = Depends(get_async_session),
 ) -> DishInfo:
     """Получение информации о блюде по его ID."""
-
     logger.info(
         'Пользователь %s запросил информацию о блюде с ID: %s',
         current_user.id,
