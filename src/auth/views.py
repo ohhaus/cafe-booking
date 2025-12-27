@@ -5,7 +5,7 @@ from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from src.common.responses import LOGIN_RESPONSES
+from src.auth.responses import LOGIN_RESPONSES
 from src.config import settings
 from src.database.sessions import get_async_session
 from src.users.models import User
