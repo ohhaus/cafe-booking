@@ -10,7 +10,6 @@ from sqlalchemy.orm import selectinload
 
 from src.cafes.models import Cafe
 from src.database.sessions import get_async_session
-from src.dishes.crud import crud_dish
 from src.dishes.models import Dish
 from src.dishes.responses import (
     CREATE_RESPONSES,
@@ -111,7 +110,10 @@ async def create_dish(
 
     # Логика создания блюда
     try:
-        new_dish = await crud_dish.create_dish(session=session, obj_in=dish_in)
+        new_dish = await dish_service.create_dish(
+            session=session,
+            obj_in=dish_in
+            )
         return DishInfo.model_validate(new_dish)
 
     except Exception as e:
