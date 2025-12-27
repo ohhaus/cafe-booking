@@ -15,7 +15,7 @@ from src.tables.schemas import TableCreate, TableCreateDB, TableUpdate
 from src.users.models import User
 
 
-class TableService(DatabaseService[Table, dict, TableUpdate]):
+class TableService(DatabaseService[Table, TableCreateDB, TableUpdate]):
     """Сервис для работы со столами в рамках кафе.
 
     Класс расширяет базовый DatabaseService и добавляет доменную логику:
@@ -201,7 +201,10 @@ class TableService(DatabaseService[Table, dict, TableUpdate]):
         if not table:
             return None
 
-        payload = data.model_dump(exclude_unset=True)
+        payload = data.model_dump(
+            exclude_unset=True,
+            by_alias=False,
+        )
 
         return await super().update(
             session,

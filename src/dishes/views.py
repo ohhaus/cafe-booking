@@ -13,9 +13,9 @@ from src.database.sessions import get_async_session
 from src.dishes.crud import crud_dish
 from src.dishes.models import Dish
 from src.dishes.responses import (
-    DISH_CREATE_RESPONSES,
-    DISH_GET_BY_ID_RESPONSES,
-    DISH_GET_RESPONSES,
+    CREATE_RESPONSES,
+    GET_BY_ID_RESPONSES,
+    GET_RESPONSES,
 )
 from src.dishes.schemas import DishCreate, DishInfo, DishUpdate
 from src.dishes.services import dish_service
@@ -37,8 +37,8 @@ logger = logging.getLogger('app')
         'Для администраторов и менеджеров - '
         'все блюда (с возможностью выбора),'
         ' для пользователей - только активные.'
-        ),
-    responses=DISH_GET_RESPONSES,
+    ),
+    responses=GET_RESPONSES,
 )
 async def get_all_dishes(
     show_all: bool = False,
@@ -92,7 +92,7 @@ async def get_all_dishes(
     description=(
         'Cоздает новое блюда. Только для администраторов и менеджеров.'
     ),
-    responses=DISH_CREATE_RESPONSES,
+    responses=CREATE_RESPONSES,
 )
 async def create_dish(
     dish_in: DishCreate,
@@ -137,7 +137,7 @@ async def create_dish(
         'Для администраторов и менеджеров - все блюда, '
         'для пользователей - только активные.'
     ),
-    responses=DISH_GET_BY_ID_RESPONSES,
+    responses=GET_BY_ID_RESPONSES,
 )
 async def get_dish_by_id(
     dish_id: UUID,
@@ -162,7 +162,7 @@ async def get_dish_by_id(
     if dish is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Dish not found",
+            detail='Dish not found',
         )
 
     return dish
@@ -174,7 +174,7 @@ async def get_dish_by_id(
     summary='Обновление информации о блюде по его ID',
     description='Обновление информации о блюде по его ID. '
     'Только для администраторов и менеджеров.',
-    responses=DISH_GET_BY_ID_RESPONSES,
+    responses=GET_BY_ID_RESPONSES,
 )
 async def update_dish(
     dish_id: UUID,
@@ -184,16 +184,18 @@ async def update_dish(
 ) -> DishInfo:
     """Обновление информации о блюде по его ID."""
     # Загружаем блюдо с предварительной загрузкой отношения cafes
-    stmt = select(
-        Dish,
-        ).where(Dish.id == dish_id).options(selectinload(Dish.cafes))
+    stmt = (
+        select(
+            Dish,
+        )
+        .where(Dish.id == dish_id)
+        .options(selectinload(Dish.cafes))
+    )
     result = await session.execute(stmt)
     dish = result.scalar_one_or_none()
 
     if not dish:
-        raise HTTPException(
-            status_code=404,
-            message="Dish not found")
+        raise HTTPException(status_code=404, message='Dish not found')
 
     # Обновляем данные
     for key, value in dish_update.dict(exclude_unset=True).items():
