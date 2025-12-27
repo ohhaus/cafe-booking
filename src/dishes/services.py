@@ -1,12 +1,13 @@
 # src/dishes/services.py
 from typing import Sequence
+
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from src.dishes.models import Dish
-from src.database.service import DatabaseService, ModelType
-from src.dishes.schemas import DishCreate, DishUpdate
 from sqlalchemy.orm import selectinload
+
+from src.database.service import DatabaseService, ModelType
+from src.dishes.models import Dish
+from src.dishes.schemas import DishCreate, DishUpdate
 
 
 async def get_multi(
@@ -53,6 +54,7 @@ class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
 
         Returns:
             Список блюд
+
         """
         conditions = []
 
@@ -85,14 +87,15 @@ class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
 
         Returns:
             Блюдо или None
+
         """
         result = await session.execute(
             select(Dish).where(
                 and_(
                     Dish.id == dish_id,
                     Dish.is_active.is_(True),
-                )
-            )
+                ),
+            ),
         )
         return result.scalars().first()
 

@@ -145,27 +145,39 @@ async def get_dish_by_id(
     session: AsyncSession = Depends(get_async_session),
 ) -> DishInfo:
     """Получение информации о блюде по его ID."""
-    stmt = (
-        select(Dish)
-        .where(Dish.id == dish_id)
-        .options(selectinload(Dish.cafes))
+
+    logger.info(
+        'Пользователь %s запросил информацию о блюде с ID: %s',
+        current_user.id,
+        dish_id,
+        extra={'user_id': str(current_user.id)},
+        )
+
+    can_view_all = (
+        current_user is not None
+        and current_user.role in (UserRole.ADMIN, UserRole.MANAGER)
     )
 
-    is_staff = current_user.is_staff()
+    filters = [Dish.id == dish_id]
 
-    if not is_staff:
-        stmt = stmt.where(Dish.active.is_(True))
+    if not can_view_all:
+        filters.append(Dish.active.is_(True))
 
-    result = await session.execute(stmt)
-    dish = result.scalar_one_or_none()
+    dishes = await dish_service.get_multi(
+        session=session,
+        filters=filters,
+        relationships=["cafes"],
+    )
+
+    dish = dishes[0] if dishes else None
 
     if dish is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail='Dish not found',
+            detail=f'Dish with ID: {dish_id} not found',
         )
 
-    return dish
+    return DishInfo.model_validate(dish, from_attributes=True)
 
 
 @router.patch(
