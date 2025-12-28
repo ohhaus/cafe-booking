@@ -1,3 +1,4 @@
+# src/dishes/schemas.py
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
@@ -56,9 +57,9 @@ class DishInfo(BaseDish):
     """Полная информации о блюде."""
 
     id: UUID
-    cafes: List[CafeShortInfo]
+    cafes: List[CafeShortInfo] = []
     is_active: bool = True
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)

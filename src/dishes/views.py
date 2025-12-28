@@ -1,15 +1,15 @@
+# src/dishes/views.py
 import logging
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.cafes.models import Cafe
 from src.database.sessions import get_async_session
-from src.dishes.crud import crud_dish
 from src.dishes.models import Dish
 from src.dishes.responses import (
     CREATE_RESPONSES,
@@ -17,15 +17,14 @@ from src.dishes.responses import (
     GET_RESPONSES,
 )
 from src.dishes.schemas import DishCreate, DishInfo, DishUpdate
-from src.dishes.services import DishService
+from src.dishes.services import dish_service
 from src.dishes.validators import check_exists_cafes_ids
 from src.users.dependencies import require_roles
-from src.users.models import User
+from src.users.models import User, UserRole
 
 
 router = APIRouter()
 logger = logging.getLogger('app')
-dish_service = DishService()
 
 
 @router.get(
@@ -40,39 +39,47 @@ dish_service = DishService()
     ),
     responses=GET_RESPONSES,
 )
-async def get_dishes(
-    show_all: bool = Query(
-        False,
-        title='Показывать все блюда?',
-        description='Показывать все блюда или нет. '
-        'По умолчанию показывает все блюда',
+async def get_all_dishes(
+    show_all: bool = False,
+    cafe_id: int | None = None,
+    current_user: User | None = Depends(
+        require_roles(
+            [UserRole.MANAGER, UserRole.ADMIN],
+            allow_guest=False,
+        ),
     ),
-    cafe_id: Optional[UUID] = Query(
-        None,
-        title='Cafe Id',
-        description='ID кафе, в котором показывать блюда. '
-        'Если не задано - показывает все блюда во всех кафе',
-    ),
-    current_user: User = Depends(require_roles(allow_guest=False)),
     session: AsyncSession = Depends(get_async_session),
-) -> List[DishInfo]:
-    """Получение списка блюд."""
-    stmt = select(Dish).options(selectinload(Dish.cafes))
+) -> list[DishInfo]:
+    """Получение списка блюд с возможностью фильтрации."""
+    logger.info(
+        'Пользователь %s запросил все блюда с фильтрами: '
+        'show_all=%s, cafe_id=%s',
+        current_user.id,
+        show_all,
+        cafe_id,
+        extra={'user_id': str(current_user.id)},
+    )
+
+    can_view_all = (
+        current_user is not None
+        and current_user.role in (UserRole.ADMIN, UserRole.MANAGER)
+    )
+
+    filters = []
+
+    if not (can_view_all and show_all):
+        filters.append(Dish.active.is_(True))
 
     if cafe_id is not None:
-        stmt = stmt.join(Dish.cafes).where(Cafe.id == cafe_id)
+        filters.append(Dish.cafes.any(Cafe.id == cafe_id))
 
-    is_staff = current_user.is_staff()
+    dishes = await dish_service.get_multi(
+        session=session,
+        filters=filters,
+        relationships=["cafes"],
+    )
 
-    if is_staff:
-        if not show_all:
-            stmt = stmt.where(Dish.active.is_(True))
-    else:
-        stmt = stmt.where(Dish.active.is_(True))
-
-    result = await session.execute(stmt)
-
-    return result.scalars().unique().all()
+    return [DishInfo.model_validate(d, from_attributes=True) for d in dishes]
 
 
 @router.post(
@@ -103,7 +110,10 @@ async def create_dish(
 
     # Логика создания блюда
     try:
-        new_dish = await crud_dish.create_dish(session=session, obj_in=dish_in)
+        new_dish = await dish_service.create_dish(
+            session=session,
+            obj_in=dish_in,
+            )
         return DishInfo.model_validate(new_dish)
 
     except Exception as e:
@@ -136,27 +146,38 @@ async def get_dish_by_id(
     session: AsyncSession = Depends(get_async_session),
 ) -> DishInfo:
     """Получение информации о блюде по его ID."""
-    stmt = (
-        select(Dish)
-        .where(Dish.id == dish_id)
-        .options(selectinload(Dish.cafes))
+    logger.info(
+        'Пользователь %s запросил информацию о блюде с ID: %s',
+        current_user.id,
+        dish_id,
+        extra={'user_id': str(current_user.id)},
+        )
+
+    can_view_all = (
+        current_user is not None
+        and current_user.role in (UserRole.ADMIN, UserRole.MANAGER)
     )
 
-    is_staff = current_user.is_staff()
+    filters = [Dish.id == dish_id]
 
-    if not is_staff:
-        stmt = stmt.where(Dish.active.is_(True))
+    if not can_view_all:
+        filters.append(Dish.active.is_(True))
 
-    result = await session.execute(stmt)
-    dish = result.scalar_one_or_none()
+    dishes = await dish_service.get_multi(
+        session=session,
+        filters=filters,
+        relationships=["cafes"],
+    )
+
+    dish = dishes[0] if dishes else None
 
     if dish is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail='Dish not found',
+            detail=f'Dish with ID: {dish_id} not found',
         )
 
-    return dish
+    return DishInfo.model_validate(dish, from_attributes=True)
 
 
 @router.patch(

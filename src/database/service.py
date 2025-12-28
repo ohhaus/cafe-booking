@@ -1,10 +1,12 @@
+# src/database/service.py
 """Базовый сервисный слой для работы с БД."""
 
 from typing import Any, Generic, Sequence, Type, TypeVar
 
 from pydantic import BaseModel
-from sqlalchemy import and_, exists, func, select
+from sqlalchemy import Select, and_, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.database.base import Base
 
@@ -54,28 +56,77 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         )
         return result.scalars().first()
 
+    def _build_options(
+            self,
+            relationships: Sequence[str] | None,
+            ) -> list:
+        """Строит список опций для подгрузки связей.
+
+        Args:
+            relationships: Список имён связей для подгрузки
+        Returns:
+            Список опций для SQLAlchemy запроса
+
+        """
+        if not relationships:
+            return []
+
+        opts = []
+        for rel_name in relationships:
+            attr = getattr(self.model, rel_name, None)
+            if attr is None:
+                raise ValueError(
+                    f"Relationship {rel_name} not found"
+                    f" on model {self.model.__name__}",
+                )
+            opts.append(selectinload(attr))
+        return opts
+
     async def get_multi(
         self,
         session: AsyncSession,
         *,
-        skip: int = 0,
+        filters: Sequence | None = None,
+        relationships: Sequence[str] | None = None,
+        order_by: Sequence | None = None,
+        offset: int = 0,
         limit: int = 100,
-    ) -> Sequence[ModelType]:
-        """Получает список объектов с пагинацией.
+    ) -> list[ModelType]:
+        """Получает список объектов с опциональными фильтрами и связями.
 
         Args:
             session: Асинхронная сессия БД
-            skip: Количество пропускаемых записей
-            limit: Максимальное количество возвращаемых записей
-
+            filters: Список условий для фильтрации
+            relationships: Список имён связей для подгрузки
+            order_by: Список условий для сортировки
+            offset: Смещение для пагинации
+            limit: Лимит на количество возвращаемых записей
         Returns:
-            Последовательность объектов модели
+            Список объектов модели
 
         """
-        result = await session.execute(
-            select(self.model).offset(skip).limit(limit),
-        )
-        return result.scalars().all()
+        stmt: Select = select(self.model)
+
+        # Подгружаем связи (selectinload) — удобно для many-to-many и one-to-M
+        options = self._build_options(relationships)
+        if options:
+            stmt = stmt.options(*options)
+
+        # Фильтры
+        if filters:
+            stmt = stmt.where(*filters)
+
+        # Сортировка
+        if order_by:
+            stmt = stmt.order_by(*order_by)
+
+        # Пагинация
+        stmt = stmt.offset(offset).limit(limit)
+
+        result = await session.execute(stmt)
+
+        # unique() важен при подгрузке relationship, чтобы не ловить дубликаты
+        return list(result.scalars().unique().all())
 
     async def create(
         self,
