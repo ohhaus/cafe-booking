@@ -157,3 +157,6 @@ class TableService(DatabaseService[Table, TableCreateDB, TableUpdate]):
             obj_in=payload,
             commit=True,
         )
+
+
+table_crud = TableService()

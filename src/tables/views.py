@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.cafes.cafe_scoped import get_cafe_or_none
 from src.cafes.service import is_admin_or_manager
 from src.database.sessions import get_async_session
-from src.tables.crud import TableService
+from src.tables.crud import table_crud
 from src.tables.responses import (
     CREATE_RESPONSES,
     GET_BY_ID_RESPONSES,
@@ -58,8 +58,6 @@ async def get_tables(
     для пользователей - только активные.
     """
     try:
-        crud = TableService()
-
         cafe = await get_cafe_or_none(db, cafe_id)
         if not cafe:
             logger.warning(
@@ -80,7 +78,7 @@ async def get_tables(
             (True if show_all is None else show_all) if privileged else False
         )
 
-        tables = await crud.list_tables(
+        tables = await table_crud.list_tables(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
@@ -145,19 +143,18 @@ async def create_table(
     ),
     db: AsyncSession = Depends(get_async_session),
 ) -> TableWithCafeInfo:
-    """Создает новое стола кафе.
+    """Создает новый стол в кафе.
 
     Только для администраторов и менеджеров.
     """
     try:
-        crud = TableService()
-        table = await crud.create_table(
+        table = await table_crud.create_table(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
             data=table_data,
         )
-        table = await crud.get_table(
+        table = await table_crud.get_table(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
@@ -315,9 +312,7 @@ async def get_table_by_id(
     для пользователей - только активные.
     """
     try:
-        crud = TableService()
-
-        table = await crud.get_table(
+        table = await table_crud.get_table(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
@@ -406,9 +401,7 @@ async def update_table(
     Только для администраторов и менеджеров.
     """
     try:
-        crud = TableService()
-
-        table = await crud.update_table(
+        table = await table_crud.update_table(
             db,
             current_user=current_user,
             cafe_id=cafe_id,

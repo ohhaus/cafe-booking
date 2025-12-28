@@ -151,3 +151,6 @@ class SlotService(DatabaseService[Slot, TimeSlotCreateDB, TimeSlotUpdate]):
             obj_in=payload,
             commit=True,
         )
+
+
+slot_crud = SlotService()

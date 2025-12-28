@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.cafes.cafe_scoped import get_cafe_or_none
 from src.cafes.service import is_admin_or_manager
 from src.database.sessions import get_async_session
-from src.slots.crud import SlotService
+from src.slots.crud import slot_crud
 from src.slots.responses import (
     CREATE_RESPONSES,
     GET_BY_ID_RESPONSES,
@@ -57,8 +57,6 @@ async def get_time_slots(
     для пользователей - только активные.
     """
     try:
-        crud = SlotService()
-
         cafe = await get_cafe_or_none(db, cafe_id)
         if not cafe:
             logger.warning(
@@ -79,7 +77,7 @@ async def get_time_slots(
             (True if show_all is None else show_all) if privileged else False
         )
 
-        slots = await crud.list_slots(
+        slots = await slot_crud.list_slots(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
@@ -142,16 +140,14 @@ async def create_time_slot(
     Только для администраторов и менеджеров.
     """
     try:
-        crud = SlotService()
-
-        slot = await crud.create_slot(
+        slot = await slot_crud.create_slot(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
             data=slot_data,
         )
 
-        slot = await crud.get_slot(
+        slot = await slot_crud.get_slot(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
@@ -283,13 +279,11 @@ async def get_time_slot_by_id(
 ) -> TimeSlotWithCafeInfo:
     """Получение информации о временном слоте в кафе по его ID.
 
-    Для администраторов и менеджеров - все столы,
+    Для администраторов и менеджеров - видят активные и не активные слоты,
     для пользователей - только активные.
     """
     try:
-        crud = SlotService()
-
-        slot = await crud.get_slot(
+        slot = await slot_crud.get_slot(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
@@ -377,9 +371,7 @@ async def update_time_slot(
     Только для администраторов и менеджеров.
     """
     try:
-        crud = SlotService()
-
-        slot = await crud.update_slot(
+        slot = await slot_crud.update_slot(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
