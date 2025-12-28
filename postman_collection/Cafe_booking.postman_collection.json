@@ -1222,7 +1222,7 @@
 								"header": [],
 								"body": {
 									"mode": "raw",
-									"raw": "{\r\n  \"cafe_id\": \"{{cafe_1_ID}}\",\r\n  \"tables_slots\": [\r\n    {\r\n      \"table_id\": \"{{table_1_cafe_1_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_1_ID}}\"\r\n    },\r\n    {\r\n      \"table_id\": \"{{table_2_cafe_1_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_1_ID}}\"\r\n    }\r\n  ],\r\n  \"guest_number\": 6,\r\n  \"note\": \"Бронирование двух столов, которые уже забронированы\",\r\n  \"status\": 0,\r\n  \"booking_date\": \"2025-12-30\"\r\n}",
+									"raw": "{\r\n  \"cafe_id\": \"{{cafe_1_ID}}\",\r\n  \"tables_slots\": [\r\n    {\r\n      \"table_id\": \"{{table_1_cafe_1_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_1_ID}}\"\r\n    },\r\n    {\r\n      \"table_id\": \"{{table_2_cafe_1_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_1_ID}}\"\r\n    }\r\n  ],\r\n  \"guest_number\": 6,\r\n  \"note\": \"Бронирование двух столов, которые уже забронированы\",\r\n  \"status\": 0,\r\n  \"booking_date\": \"2026-01-30\"\r\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -1279,7 +1279,7 @@
 								"header": [],
 								"body": {
 									"mode": "raw",
-									"raw": "{\r\n  \"cafe_id\": \"{{cafe_2_ID}}\",\r\n  \"tables_slots\": [\r\n    {\r\n      \"table_id\": \"{{table_1_cafe_2_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_2_ID}}\"\r\n    }\r\n  ],\r\n  \"guest_number\": 5,\r\n  \"note\": \"Бронирование с превышением кол-ва мест\",\r\n  \"status\": 0,\r\n  \"booking_date\": \"2025-12-29\"\r\n}",
+									"raw": "{\r\n  \"cafe_id\": \"{{cafe_2_ID}}\",\r\n  \"tables_slots\": [\r\n    {\r\n      \"table_id\": \"{{table_1_cafe_2_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_2_ID}}\"\r\n    }\r\n  ],\r\n  \"guest_number\": 5,\r\n  \"note\": \"Бронирование с превышением кол-ва мест\",\r\n  \"status\": 0,\r\n  \"booking_date\": \"2026-01-29\"\r\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -1410,6 +1410,230 @@
 								}
 							},
 							"response": []
+						},
+						{
+							"name": "Test 7: create_booking // Normal",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"const responseData = pm.response.json();",
+											"",
+											"pm.test(\"Статус-код ответа должен быть 422\", function () {",
+											"    pm.expect(",
+											"        pm.response.code,",
+											"        \"Если запрос на создание бронирования содержит корректные данные - должен вернуться ответ со статус-кодом 422\"",
+											"    ).to.eql(422);",
+											"});"
+										],
+										"type": "text/javascript",
+										"packages": {},
+										"requests": {}
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{normalUserToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"cafe_id\": \"{{cafe_2_ID}}\",\r\n  \"tables_slots\": [\r\n    {\r\n      \"table_id\": \"{{table_1_cafe_2_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_2_ID}}\"\r\n    }\r\n  ],\r\n  \"guest_number\": 2,\r\n  \"note\": \"Бронирование с недопустимым статусом COMPLETED\",\r\n  \"status\": 3,\r\n  \"booking_date\": \"2026-01-15\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseURL}}/booking",
+									"host": [
+										"{{baseURL}}"
+									],
+									"path": [
+										"booking"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Test 8: create_booking // Normal",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"const responseData = pm.response.json();",
+											"",
+											"pm.test(\"Статус-код ответа должен быть 422\", function () {",
+											"    pm.expect(",
+											"        pm.response.code,",
+											"        \"Если запрос на создание бронирования содержит корректные данные - должен вернуться ответ со статус-кодом 422\"",
+											"    ).to.eql(422);",
+											"});"
+										],
+										"type": "text/javascript",
+										"packages": {},
+										"requests": {}
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{normalUserToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"cafe_id\": \"0e250a03-b1bb-4744-ae5e-278c5f175b7a\",\r\n  \"tables_slots\": [\r\n    {\r\n      \"table_id\": \"{{table_1_cafe_2_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_2_ID}}\"\r\n    }\r\n  ],\r\n  \"guest_number\": 2,\r\n  \"note\": \"Бронирование стола в несуществующем кафе\",\r\n  \"status\": 0,\r\n  \"booking_date\": \"2026-01-15\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseURL}}/booking",
+									"host": [
+										"{{baseURL}}"
+									],
+									"path": [
+										"booking"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Test 9: create_booking // Normal",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"const responseData = pm.response.json();",
+											"",
+											"pm.test(\"Статус-код ответа должен быть 422\", function () {",
+											"    pm.expect(",
+											"        pm.response.code,",
+											"        \"Если запрос на создание бронирования содержит корректные данные - должен вернуться ответ со статус-кодом 422\"",
+											"    ).to.eql(422);",
+											"});"
+										],
+										"type": "text/javascript",
+										"packages": {},
+										"requests": {}
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{normalUserToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"cafe_id\": \"{{cafe_2_ID}}\",\r\n  \"tables_slots\": [\r\n    {\r\n      \"table_id\": \"0e250a03-b1bb-4744-ae5e-278c5f175b7a\",\r\n      \"slot_id\": \"{{slot_1_cafe_2_ID}}\"\r\n    }\r\n  ],\r\n  \"guest_number\": 2,\r\n  \"note\": \"Бронирование в кафе с несуществующим столом\",\r\n  \"status\": 0,\r\n  \"booking_date\": \"2026-01-15\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseURL}}/booking",
+									"host": [
+										"{{baseURL}}"
+									],
+									"path": [
+										"booking"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Test 10: create_booking // Normal",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"const responseData = pm.response.json();",
+											"",
+											"pm.test(\"Статус-код ответа должен быть 422\", function () {",
+											"    pm.expect(",
+											"        pm.response.code,",
+											"        \"Если запрос на создание бронирования содержит корректные данные - должен вернуться ответ со статус-кодом 422\"",
+											"    ).to.eql(422);",
+											"});"
+										],
+										"type": "text/javascript",
+										"packages": {},
+										"requests": {}
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{normalUserToken}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"cafe_id\": \"{{cafe_2_ID}}\",\r\n  \"tables_slots\": [\r\n    {\r\n      \"table_id\": \"{{table_1_cafe_2_ID}}\",\r\n      \"slot_id\": \"0e250a03-b1bb-4744-ae5e-278c5f175b7a\"\r\n    }\r\n  ],\r\n  \"guest_number\": 2,\r\n  \"note\": \"Бронирование стола в кафе с несуществующим слотом.\",\r\n  \"status\": 0,\r\n  \"booking_date\": \"2026-01-15\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseURL}}/booking",
+									"host": [
+										"{{baseURL}}"
+									],
+									"path": [
+										"booking"
+									]
+								}
+							},
+							"response": []
 						}
 					]
 				},
@@ -1461,7 +1685,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n  \"cafe_id\": \"{{cafe_1_ID}}\",\r\n  \"tables_slots\": [\r\n    {\r\n      \"table_id\": \"{{table_1_cafe_1_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_1_ID}}\"\r\n    }\r\n  ],\r\n  \"guest_number\": 2,\r\n  \"note\": \"Первое бронирование\",\r\n  \"status\": 0,\r\n  \"booking_date\": \"2025-12-29\"\r\n}",
+							"raw": "{\r\n  \"cafe_id\": \"{{cafe_1_ID}}\",\r\n  \"tables_slots\": [\r\n    {\r\n      \"table_id\": \"{{table_1_cafe_1_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_1_ID}}\"\r\n    }\r\n  ],\r\n  \"guest_number\": 2,\r\n  \"note\": \"Бронирование одного стола\",\r\n  \"status\": 0,\r\n  \"booking_date\": \"2026-01-29\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1528,7 +1752,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n  \"cafe_id\": \"{{cafe_1_ID}}\",\r\n  \"tables_slots\": [\r\n    {\r\n      \"table_id\": \"{{table_1_cafe_1_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_1_ID}}\"\r\n    },\r\n    {\r\n      \"table_id\": \"{{table_2_cafe_1_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_1_ID}}\"\r\n    }\r\n  ],\r\n  \"guest_number\": 6,\r\n  \"note\": \"Бронирование двух столов на полное количество мест\",\r\n  \"status\": 0,\r\n  \"booking_date\": \"2025-12-30\"\r\n}",
+							"raw": "{\r\n  \"cafe_id\": \"{{cafe_1_ID}}\",\r\n  \"tables_slots\": [\r\n    {\r\n      \"table_id\": \"{{table_1_cafe_1_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_1_ID}}\"\r\n    },\r\n    {\r\n      \"table_id\": \"{{table_2_cafe_1_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_1_ID}}\"\r\n    }\r\n  ],\r\n  \"guest_number\": 6,\r\n  \"note\": \"Бронирование двух столов на полное количество мест\",\r\n  \"status\": 0,\r\n  \"booking_date\": \"2026-01-30\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1630,7 +1854,113 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseURL}}/booking?booking_id={{booking_1_cafe_1}}",
+							"raw": "{{baseURL}}/booking/{{booking_1_cafe_1}}",
+							"host": [
+								"{{baseURL}}"
+							],
+							"path": [
+								"booking",
+								"{{booking_1_cafe_1}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Test 11: change_booking_1 // Normal",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const responseData = pm.response.json();\r",
+									"\r",
+									"pm.test(\"Статус-код ответа должен быть 200\", function () {\r",
+									"    pm.expect(\r",
+									"        pm.response.code,\r",
+									"        \"Если запрос на изменение бронирования содержит корректные данные - должен вернуться ответ со статус-кодом 200\"\r",
+									"    ).to.eql(200);\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{normalUserToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"status\": 1,\r\n  \"is_active\": false,\r\n  \"note\": \"Отменяем бронь т.к. все переигралось\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseURL}}/booking/{{booking_1_cafe_1}}",
+							"host": [
+								"{{baseURL}}"
+							],
+							"path": [
+								"booking",
+								"{{booking_1_cafe_1}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Test 12: get_bookings // Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const responseData = pm.response.json();\r",
+									"\r",
+									"pm.test(\"Статус-код ответа должен быть 200\", function () {\r",
+									"    pm.expect(\r",
+									"        pm.response.code,\r",
+									"        \"Если запрос на изменение бронирования содержит корректные данные - должен вернуться ответ со статус-кодом 200\"\r",
+									"    ).to.eql(200);\r",
+									"});"
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminUserToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseURL}}/booking?show_all=false",
 							"host": [
 								"{{baseURL}}"
 							],
@@ -1639,8 +1969,8 @@
 							],
 							"query": [
 								{
-									"key": "booking_id",
-									"value": "{{booking_1_cafe_1}}"
+									"key": "show_all",
+									"value": "false"
 								}
 							]
 						}
@@ -1699,6 +2029,177 @@
 							"path": [
 								"booking",
 								"{{booking_1_cafe_1}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Test 14: change_booking // Normal",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const responseData = pm.response.json();\r",
+									"\r",
+									"pm.test(\"Статус-код ответа должен быть 200\", function () {\r",
+									"    pm.expect(\r",
+									"        pm.response.code,\r",
+									"        \"Если запрос на изменение бронирования содержит корректные данные - должен вернуться ответ со статус-кодом 200\"\r",
+									"    ).to.eql(200);\r",
+									"});"
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{normalUserToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"guest_number\": 5,\r\n  \"note\": \"Меняем количество гостей\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseURL}}/booking/{{booking_1_cafe_2}}",
+							"host": [
+								"{{baseURL}}"
+							],
+							"path": [
+								"booking",
+								"{{booking_1_cafe_2}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Test 15: change_booking // Normal",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const responseData = pm.response.json();\r",
+									"\r",
+									"pm.test(\"Статус-код ответа должен быть 200\", function () {\r",
+									"    pm.expect(\r",
+									"        pm.response.code,\r",
+									"        \"Если запрос на изменение бронирования содержит корректные данные - должен вернуться ответ со статус-кодом 200\"\r",
+									"    ).to.eql(200);\r",
+									"});"
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{normalUserToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"tables_slots\": [\r\n    {\r\n      \"table_id\": \"{{table_2_cafe_1_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_1_ID}}\"\r\n    }\r\n  ],\r\n  \"guest_number\": 2\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseURL}}/booking/{{booking_1_cafe_2}}",
+							"host": [
+								"{{baseURL}}"
+							],
+							"path": [
+								"booking",
+								"{{booking_1_cafe_2}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Test 16: change_booking // Normal",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const responseData = pm.response.json();\r",
+									"\r",
+									"pm.test(\"Статус-код ответа должен быть 200\", function () {\r",
+									"    pm.expect(\r",
+									"        pm.response.code,\r",
+									"        \"Если запрос на изменение бронирования содержит корректные данные - должен вернуться ответ со статус-кодом 200\"\r",
+									"    ).to.eql(200);\r",
+									"});"
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{normalUserToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"tables_slots\": [\r\n    {\r\n      \"table_id\": \"{{table_1_cafe_1_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_1_ID}}\"\r\n    },\r\n    {\r\n      \"table_id\": \"{{table_2_cafe_1_ID}}\",\r\n      \"slot_id\": \"{{slot_1_cafe_1_ID}}\"\r\n    }\r\n  ],\r\n  \"guest_number\": 6\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseURL}}/booking/{{booking_1_cafe_2}}",
+							"host": [
+								"{{baseURL}}"
+							],
+							"path": [
+								"booking",
+								"{{booking_1_cafe_2}}"
 							]
 						}
 					},

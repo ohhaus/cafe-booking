@@ -14,6 +14,43 @@ Pair = Tuple[UUID, UUID]
 BookingIn = Union[BookingCreate, BookingUpdate]
 
 
+def apply_status_is_active(
+    booking: Booking,
+    data: Dict[str, Any],
+    *,
+    trigger_domain_events: bool,
+) -> None:
+    """Применяет status и синхронизирует активность (booking.active).
+
+    - status определяет active:
+        - CANCELED (1) -> active = False
+        - иначе -> active = True
+    - Доменные методы cancel_booking()/restore_booking() вызываются только при
+    UPDATE, и только при переходах:
+        - X -> CANCELED
+        - CANCELED -> X (X != CANCELED)
+    """
+    if not trigger_domain_events:
+        return
+
+    if 'status' not in data or data['status'] is None:
+        return
+
+    new_status: BookingStatus = data['status']
+    old_status: BookingStatus = booking.status
+
+    if new_status == old_status:
+        return
+
+    booking.status = new_status
+    booking.active = new_status != BookingStatus.CANCELED
+
+    if new_status == BookingStatus.CANCELED:
+        booking.cancel_booking()
+    elif old_status == BookingStatus.CANCELED:
+        booking.restore_booking()
+
+
 async def create_or_update_booking(
     *,
     crud: BookingCRUD,
@@ -31,13 +68,13 @@ async def create_or_update_booking(
         - iterable пар (table_id, slot_id): заменяем набор активных связей
     """
     # "Эффективные" значения для простых полей:
-    # (для BookingCreate они всегда есть, для BookingUpdate - нет)
+    # Обновляем все поля для POST запроса.
     if booking is None:
         cafe_id = data.cafe_id
         booking_date = data.booking_date
         guest_number = data.guest_number
         note = data.note or ''
-        status = data.status  # для create валидируется схемой
+        status = data.status
 
         booking = await crud.create_booking(
             user_id=current_user_id,
@@ -49,8 +86,6 @@ async def create_or_update_booking(
         )
     else:
         # Обновляем только то, что реально пришло в PATCH.
-        # Но чтобы сервис был самостоятельным, ориентируемся на наличие
-        # атрибута != None.
         if getattr(data, 'cafe_id', None) is not None:
             booking.cafe_id = data.cafe_id
         if getattr(data, 'booking_date', None) is not None:
@@ -59,12 +94,14 @@ async def create_or_update_booking(
             booking.guest_number = data.guest_number
         if getattr(data, 'note', None) is not None:
             booking.note = data.note or ''
-        if getattr(data, 'status', None) is not None:
-            booking.status = data.status
+        apply_status_is_active(
+            booking,
+            {'status': getattr(data, 'status', None)},
+            trigger_domain_events=True,
+        )
 
-    # Если нужно заменить/обновить пары стол-слот
     if tables_slots is not None:
-        await _replace_booking_table_slots(
+        await _create_or_update_booking_table_slots(
             crud=crud,
             booking=booking,
             pairs=set(tables_slots),
@@ -74,14 +111,20 @@ async def create_or_update_booking(
     return booking
 
 
-async def _replace_booking_table_slots(
+async def _create_or_update_booking_table_slots(
     *,
     crud: BookingCRUD,
     booking: Booking,
     pairs: set[Pair],
     booking_date: date,
 ) -> None:
-    """Заменить набор активных связей booking_table_slots на заданный."""
+    """Создаёт или обновляет связи бронирования со столами и слотами.
+
+    Активные пары (table_id, slot_id) из `pairs` обновляются
+    (восстанавливаются, если были удалены).
+    Отсутствующие активные пары деактивируются.
+    Новые пары создаются.
+    """
     # Явно загружаем booking_table_slots, чтобы избежать lazy loading
     # в асинхронном контексте
     await crud.db.refresh(booking, attribute_names=['booking_table_slots'])
@@ -105,10 +148,10 @@ async def _replace_booking_table_slots(
             if keep:
                 bts.booking_date = booking_date
                 if not bts.active:
-                    bts.restore()
+                    bts.active = True
             else:
                 if bts.active:
-                    bts.soft_delete()
+                    bts.active = False
 
     # 2) Создаём недостающие пары
     for table_id, slot_id in pairs:
@@ -119,49 +162,3 @@ async def _replace_booking_table_slots(
                 slot_id=slot_id,
                 booking_date=booking_date,
             )
-
-
-def apply_status_is_active(
-    booking: Booking,
-    data: Dict[str, Any],
-) -> None:
-    """Обновляет статус и активность брони с учётом бизнес-логики."""
-    if 'status' in data and data['status'] is not None:
-        new_status: BookingStatus = data['status']
-        old_status: BookingStatus = booking.status
-
-        booking.status = new_status
-
-        if new_status == BookingStatus.CANCELED:
-            if booking.active:
-                booking.active = False
-                booking.cancel_booking()
-        else:
-            if (old_status == BookingStatus.CANCELED) or (not booking.active):
-                booking.active = True
-                booking.restore_booking()
-
-        return
-
-    if 'is_active' in data and data['is_active'] is not None:
-        new_active: bool = bool(data['is_active'])
-        old_active: bool = bool(booking.active)
-
-        if old_active is True and new_active is False:
-            booking.active = False
-            booking.cancel_booking()
-            booking.status = BookingStatus.CANCELED
-        elif old_active is False and new_active is True:
-            booking.active = True
-            booking.restore_booking()
-            if booking.status == BookingStatus.CANCELED:
-                booking.status = BookingStatus.BOOKING
-
-
-def active_pairs(booking: Booking) -> list[Pair]:
-    """Возвращает список активных пар (table_id, slot_id) для бронирования."""
-    return [
-        (bts.table_id, bts.slot_id)
-        for bts in booking.booking_table_slots
-        if bts.active
-    ]

@@ -107,14 +107,16 @@ class Booking(Base):
     def cancel_booking(self) -> None:
         """Отменяет бронирование столов-слотов."""
         for bts in self.booking_table_slots:
-            bts.soft_delete()
+            bts.active = False
         self.status = BookingStatus.CANCELED
+        self.active = False
 
     def restore_booking(self) -> None:
         """Восстанавливает отменённое бронирование столов-слотов."""
         for bts in self.booking_table_slots:
-            bts.restore()
+            bts.active = True
         self.status = BookingStatus.BOOKING
+        self.active = True
 
 
 class BookingTableSlot(Base):
