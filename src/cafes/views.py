@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -130,8 +129,8 @@ async def create_cafe(
     responses=GET_RESPONSES,
 )
 async def get_all_cafes(
-    show_all: Optional[bool] = Query(
-        None,
+    show_all: bool = Query(
+        False,
         title='Показывать все кафе?',
         description=(
             'Показывать все кафе или нет. По умолчанию показывает все кафе'
@@ -147,9 +146,7 @@ async def get_all_cafes(
     """
     try:
         privileged = is_admin_or_manager(current_user)
-        include_inactive = (
-            (True if show_all is None else show_all) if privileged else False
-        )
+        include_inactive = show_all if privileged else False
 
         cafes = await cafe_crud.get_list_cafe(
             db,

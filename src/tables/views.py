@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -44,8 +43,8 @@ logger = logging.getLogger('app')
 )
 async def get_tables(
     cafe_id: UUID,
-    show_all: Optional[bool] = Query(
-        None,
+    show_all: bool = Query(
+        False,
         title='Показывать все столы?',
         description='Показывать все столы в кафе или нет.',
     ),
@@ -74,9 +73,7 @@ async def get_tables(
             )
 
         privileged = is_admin_or_manager(current_user)
-        include_all = (
-            (True if show_all is None else show_all) if privileged else False
-        )
+        include_all = show_all if privileged else False
 
         tables = await table_crud.list_tables(
             db,
