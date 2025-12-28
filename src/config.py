@@ -59,7 +59,7 @@ class DatabaseSettings(BaseSettings):
 class RedisSettings(BaseSettings):
     """Настройки Redis."""
 
-    URL: str = Field(default='redis://localhost:6379/0')
+    URL: str = Field(default='redis://redis:6379/0')
     PASSWORD: str = Field(default='password')
     SOCKET_CONNECTION_TIMEOUT: PositiveInt = Field(default=5)
     SOCKET_TIMEOUT: PositiveInt = Field(default=5)
