@@ -42,13 +42,6 @@ async def create_cafe(
     db: AsyncSession = Depends(get_async_session),
 ) -> CafeInfo:
     """Создает новое кафе. Только для администраторов и менеджеров."""
-    logger.info(
-        'Пользователь %s инициализировал создание кафе %s',
-        current_user.id,
-        cafe_data.name,
-        extra={'user_id': str(current_user.id)},
-    )
-
     try:
         crud = CafeService()
 
@@ -224,16 +217,6 @@ async def get_cafe_by_id(
     try:
         crud = CafeService()
         include_inactive = is_admin_or_manager(current_user)
-        logger.info(
-            'Пользователь %s запрашивает кафе %s (include_inactive=%s)',
-            current_user.id,
-            cafe_id,
-            include_inactive,
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-            },
-        )
 
         cafe = await crud.get_cafe_by_id(
             db,
@@ -312,14 +295,6 @@ async def update_cafe(
     try:
         crud = CafeService()
 
-        logger.info(
-            'Пользователь %s обновляет кафе %s (fields=%s)',
-            current_user.id,
-            cafe_id,
-            sorted(cafe_data.model_fields_set),
-            extra={'user_id': str(current_user.id), 'cafe_id': str(cafe_id)},
-        )
-
         cafe = await crud.get_cafe_by_id(
             db,
             cafe_id=cafe_id,
@@ -337,8 +312,9 @@ async def update_cafe(
             cafe_data,
         )
         logger.info(
-            'Кафе %s успешно обновлено',
+            'Кафе %s обновлено пользователем %s',
             cafe.id,
+            current_user.id,
             extra={
                 'user_id': str(current_user.id),
                 'cafe_id': str(cafe.id),

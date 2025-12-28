@@ -3,12 +3,15 @@ from __future__ import annotations
 from typing import Optional, Sequence
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-from sqlalchemy.sql import Select
 
-from src.cafes.models import Cafe
+from src.cafes.cafe_scoped import (
+    apply_visibility_filters,
+    cafe_scoped_stmt,
+    get_cafe_or_none,
+    require_staff,
+    with_id,
+)
 from src.database.service import DatabaseService
 from src.tables.models import Table
 from src.tables.schemas import TableCreate, TableCreateDB, TableUpdate
@@ -33,68 +36,6 @@ class TableService(DatabaseService[Table, TableCreateDB, TableUpdate]):
         """Инициализирует сервис и привязывает его к модели Table."""
         super().__init__(Table)
 
-    # ----- HELPERS -----
-    @staticmethod
-    def _require_staff(
-        user: User,
-        message: str,
-    ) -> None:
-        """Хелпер, проверяет пользователя на то что он сотрудник."""
-        if not user.is_staff():
-            raise PermissionError(message)
-
-    @staticmethod
-    async def _get_cafe_or_none(
-        db: AsyncSession,
-        cafe_id: UUID,
-    ) -> Optional[Cafe]:
-        """Возвращает кафе по ID."""
-        result = await db.execute(select(Cafe).where(Cafe.id == cafe_id))
-        return result.scalars().first()
-
-    @staticmethod
-    def _cafe_scoped_stmt(cafe_id: UUID) -> Select:
-        """Возвращает запрос стола к определенному кафе."""
-        return (
-            select(Table)
-            .options(
-                selectinload(Table.cafe),
-            )
-            .where(Table.cafe_id == cafe_id)
-        )
-
-    @staticmethod
-    def _with_id(stmt: Select, table_id: UUID) -> Select:
-        """Возвращает запрос определенного стола по ID."""
-        return stmt.where(Table.id == table_id)
-
-    @staticmethod
-    def _apply_visibility_filters(
-        stmt: Select,
-        current_user: User,
-        *,
-        show_all: Optional[bool] = None,
-    ) -> Select:
-        """Правила.
-
-        - staff:
-            show_all=False -> только активные.
-            show_all=True/None -> все.
-        - user:
-            только активные,
-            и только если Cafe.active=True.
-        """
-        if current_user.is_staff():
-            if show_all is False:
-                return stmt.where(Table.active.is_(True))
-            return stmt
-
-        return (
-            stmt.where(Table.active.is_(True))
-            .join(Cafe, Cafe.id == Table.cafe_id)
-            .where(Cafe.active.is_(True))
-        )
-
     async def list_tables(
         self,
         session: AsyncSession,
@@ -112,10 +53,12 @@ class TableService(DatabaseService[Table, TableCreateDB, TableUpdate]):
                 * возвращает только активные столы.
                 * только если кафе активно (иначе вернёт пустой результат).
         """
-        stmt = self._cafe_scoped_stmt(
+        stmt = cafe_scoped_stmt(
+            Table,
             cafe_id,
         ).order_by(Table.created_at.desc())
-        stmt = self._apply_visibility_filters(
+        stmt = apply_visibility_filters(
+            Table,
             stmt,
             current_user,
             show_all=show_all,
@@ -137,9 +80,14 @@ class TableService(DatabaseService[Table, TableCreateDB, TableUpdate]):
         и активности кафе. Для staff-ролей возвращается запись независимо от
         активности (если запись существует в рамках cafe_id).
         """
-        stmt = self._cafe_scoped_stmt(cafe_id)
-        stmt = self._with_id(stmt, table_id)
-        stmt = self._apply_visibility_filters(stmt, current_user)
+        stmt = cafe_scoped_stmt(Table, cafe_id)
+        stmt = with_id(Table, stmt, table_id)
+        stmt = apply_visibility_filters(
+            Table,
+            stmt,
+            current_user,
+            show_all=True,
+        )
 
         result = await session.execute(stmt)
         return result.scalars().first()
@@ -157,19 +105,16 @@ class TableService(DatabaseService[Table, TableCreateDB, TableUpdate]):
         что кафе существует.
         Также устанавливает cafe_id для создаваемой записи.
         """
-        self._require_staff(
+        require_staff(
             current_user,
             'Недостаточно прав для создания стола',
         )
 
-        cafe = await self._get_cafe_or_none(session, cafe_id)
+        cafe = await get_cafe_or_none(session, cafe_id)
         if not cafe:
             raise LookupError('Кафе не найдено')
 
-        payload = data.model_dump()
-        payload['cafe_id'] = cafe_id
-
-        table_db = TableCreateDB(**payload)
+        table_db = TableCreateDB(cafe_id=cafe_id, **data.model_dump())
 
         return await super().create(session, obj_in=table_db, commit=True)
 
@@ -186,7 +131,7 @@ class TableService(DatabaseService[Table, TableCreateDB, TableUpdate]):
         Доступно только staff-пользователям. Обновление выполняется только для
         записи, которая принадлежит указанному cafe_id.
         """
-        self._require_staff(
+        require_staff(
             current_user,
             'Недостаточно прав для обновления стола',
         )

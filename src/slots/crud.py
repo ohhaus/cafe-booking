@@ -3,12 +3,15 @@ from __future__ import annotations
 from typing import Optional, Sequence
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-from sqlalchemy.sql import Select
 
-from src.cafes.models import Cafe
+from src.cafes.cafe_scoped import (
+    apply_visibility_filters,
+    cafe_scoped_stmt,
+    get_cafe_or_none,
+    require_staff,
+    with_id,
+)
 from src.database.service import DatabaseService
 from src.slots.models import Slot
 from src.slots.schemas import TimeSlotCreate, TimeSlotCreateDB, TimeSlotUpdate
@@ -32,66 +35,6 @@ class SlotService(DatabaseService[Slot, TimeSlotCreateDB, TimeSlotUpdate]):
         """Инициализирует сервис и привязывает его к модели Slot."""
         super().__init__(Slot)
 
-    #  -----HELPERS-----
-    @staticmethod
-    def _require_staff(
-        user: User,
-        message: str,
-    ) -> None:
-        """Хелпер, проверяет пользователя на то что он сотрудник."""
-        if not user.is_staff():
-            raise PermissionError(message)
-
-    @staticmethod
-    async def _get_cafe_or_none(
-        db: AsyncSession,
-        cafe_id: UUID,
-    ) -> Optional[Cafe]:
-        """Возвращает кафе по ID."""
-        result = await db.execute(select(Cafe).where(Cafe.id == cafe_id))
-        return result.scalars().first()
-
-    @staticmethod
-    def _cafe_scoped_stmt(cafe_id: UUID) -> Select:
-        """Возвращает запрос слота к определенному кафе."""
-        return (
-            select(Slot)
-            .options(selectinload(Slot.cafe))
-            .where(Slot.cafe_id == cafe_id)
-        )
-
-    @staticmethod
-    def _with_id(stmt: Select, slot_id: UUID) -> Select:
-        """Возвращает запрос определенного слота по ID."""
-        return stmt.where(Slot.id == slot_id)
-
-    @staticmethod
-    def _apply_visibility_filters(
-        stmt: Select,
-        current_user: User,
-        *,
-        show_all: Optional[bool] = None,
-    ) -> Select:
-        """Правила.
-
-        - staff:
-            show_all=False -> только активные.
-            show_all=True/None -> все.
-        - user:
-            только активные,
-            и только если Cafe.active=True.
-        """
-        if current_user.is_staff():
-            if show_all is False:
-                return stmt.where(Slot.active.is_(True))
-            return stmt
-
-        return (
-            stmt.where(Slot.active.is_(True))
-            .join(Cafe, Cafe.id == Slot.cafe_id)
-            .where(Cafe.active.is_(True))
-        )
-
     async def list_slots(
         self,
         session: AsyncSession,
@@ -100,8 +43,9 @@ class SlotService(DatabaseService[Slot, TimeSlotCreateDB, TimeSlotUpdate]):
         show_all: bool = False,
     ) -> Sequence[Slot]:
         """Возвращает список слотов кафе с учётом прав доступа."""
-        stmt = self._cafe_scoped_stmt(cafe_id).order_by(Slot.start_time)
-        stmt = self._apply_visibility_filters(
+        stmt = cafe_scoped_stmt(Slot, cafe_id).order_by(Slot.start_time)
+        stmt = apply_visibility_filters(
+            Slot,
             stmt,
             current_user,
             show_all=show_all,
@@ -123,9 +67,14 @@ class SlotService(DatabaseService[Slot, TimeSlotCreateDB, TimeSlotUpdate]):
         и активности кафе. Для staff-ролей возвращается запись независимо от
         активности (если запись существует в рамках cafe_id).
         """
-        stmt = self._cafe_scoped_stmt(cafe_id)
-        stmt = self._with_id(stmt, slot_id)
-        stmt = self._apply_visibility_filters(stmt, current_user)
+        stmt = cafe_scoped_stmt(Slot, cafe_id)
+        stmt = with_id(Slot, stmt, slot_id)
+        stmt = apply_visibility_filters(
+            Slot,
+            stmt,
+            current_user,
+            show_all=True,
+        )
 
         result = await session.execute(stmt)
         return result.scalars().first()
@@ -142,12 +91,12 @@ class SlotService(DatabaseService[Slot, TimeSlotCreateDB, TimeSlotUpdate]):
         Доступно только staff-пользователям. Перед созданием проверяет,
         что кафе существует. Слот создаётся с привязкой к cafe_id.
         """
-        self._require_staff(
+        require_staff(
             current_user,
             'Недостаточно прав для создания слота',
         )
 
-        cafe = await self._get_cafe_or_none(session, cafe_id)
+        cafe = await get_cafe_or_none(session, cafe_id)
         if not cafe:
             raise LookupError('Кафе не найдено')
 
@@ -172,7 +121,7 @@ class SlotService(DatabaseService[Slot, TimeSlotCreateDB, TimeSlotUpdate]):
               (учитывается частичное обновление, когда передано только одно
               поле)
         """
-        self._require_staff(
+        require_staff(
             current_user,
             'Недостаточно прав для обновления слота',
         )
