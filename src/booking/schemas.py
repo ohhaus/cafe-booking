@@ -82,6 +82,7 @@ class TablesSlotsInfo(BaseModel):
     id: UUID
     table: TableShortInfo
     slot: SlotShortInfo
+    is_active: bool
 
     model_config = ConfigDict(from_attributes=True)
 

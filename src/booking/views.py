@@ -1,4 +1,3 @@
-from datetime import date
 import logging
 from typing import List, Optional, Tuple
 from uuid import UUID
@@ -9,15 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.booking.crud import BookingCRUD
 from src.booking.exceptions import handle_booking_exceptions
 from src.booking.schemas import BookingCreate, BookingInfo, BookingUpdate
-from src.booking.services import (
-    active_pairs,
-    apply_status_is_active,
-    create_or_update_booking,
-)
 from src.booking.validators import (
-    validate_booking_db_constraints,
-    validate_create_booking,
-    validate_patch_cafe_change_requires_tables_slots,
+    validate_and_create_booking,
+    validate_and_update_booking,
+)
+from src.common.responses import (
+    create_responses,
+    list_responses,
+    retrieve_responses,
 )
 from src.database.sessions import get_async_session
 from src.users.dependencies import require_roles
@@ -36,12 +34,7 @@ logger = logging.getLogger('app')
     summary='Создать бронирование',
     description='Создать новое бронирование для указанного кафе и даты. '
     'Только для авторизованных пользователей.',
-    responses={
-        201: {'description': 'Успешно'},
-        400: {'description': 'Ошибка в параметрах запроса'},
-        401: {'description': 'Неавторизированный пользователь'},
-        422: {'description': 'Ошибка валидации данных'},
-    },
+    responses=create_responses(BookingInfo),
 )
 async def create_booking(
     booking_data: BookingCreate,
@@ -52,30 +45,14 @@ async def create_booking(
     ),
     db: AsyncSession = Depends(get_async_session),
 ) -> BookingInfo | None:
-    """Создаёт новое бронирование.
-
-    Args:
-        booking_data (BookingCreate): Данные для создания брони.
-        current_user (User): Текущий авторизованный пользователь.
-        db (AsyncSession): Асинхронная сессия базы данных.
-
-    Returns:
-        BookingInfo: Созданная бронь с подробной информацией.
-
-    """
+    """Создаёт новое бронирование."""
     user_id = current_user.id
     try:
         crud = BookingCRUD(db)
-        await validate_create_booking(crud, booking_data, current_user)
-
-        # Создание брони
-        pairs = [(ts.table_id, ts.slot_id) for ts in booking_data.tables_slots]
-        booking = await create_or_update_booking(
+        booking = await validate_and_create_booking(
             crud=crud,
+            booking_data=booking_data,
             current_user_id=user_id,
-            booking=None,
-            data=booking_data,
-            tables_slots=pairs,
         )
 
         await db.commit()
@@ -115,11 +92,7 @@ async def create_booking(
         'для пользователей - только свои (параметры игнорируются, '
         'кроме ID кафе).'
     ),
-    responses={
-        200: {'description': 'Успешно'},
-        401: {'description': 'Неавторизированный пользователь'},
-        422: {'description': 'Ошибка валидации данных'},
-    },
+    responses=list_responses(),
 )
 async def get_all_bookings(
     show_all: bool = Query(
@@ -177,33 +150,14 @@ async def get_all_bookings(
     description='Получение полной информации о бронировании по его уникальному'
     ' идентификатору. Пользователь может просматривать только свои'
     ' бронирования, менеджеры и администраторы — любые.',
-    responses={
-        200: {'description': 'Успешно'},
-        401: {'description': 'Неавторизированный пользователь'},
-        403: {'description': 'Доступ запрещён'},
-        404: {'description': 'Бронирование не найдено'},
-        422: {'description': 'Некорректный формат ID'},
-    },
+    responses=retrieve_responses(),
 )
 async def get_booking_by_id(
     booking_id: UUID,
     current_user: User = Depends(require_roles(allow_guest=False)),
     session: AsyncSession = Depends(get_async_session),
 ) -> BookingInfo | None:
-    """Получить бронирование по ID с учётом прав доступа.
-
-    Args:
-        booking_id (UUID): ID бронирования.
-        current_user (User): Текущий авторизованный пользователь.
-        session (AsyncSession): Асинхронная сессия базы данных.
-
-    Returns:
-        BookingInfo: Данные бронирования.
-
-    Raises:
-        HTTPException: 404 если бронирование не найдено или недоступно.
-
-    """
+    """Получает бронирование по ID с учётом прав доступа."""
     try:
         crud = BookingCRUD(session)
         booking = await crud.get_booking_by_id(
@@ -234,19 +188,20 @@ async def get_booking_by_id(
 Pair = Tuple[UUID, UUID]
 
 
-@router.patch('/{booking_id}', response_model=BookingInfo)
+@router.patch(
+    '/{booking_id}',
+    response_model=BookingInfo,
+    summary='Частичное обновление бронирования',
+    description='Частичное обновление бронирования по его ID. ',
+    responses=retrieve_responses(),
+)
 async def patch_booking(
     booking_id: UUID,
     patch_data: BookingUpdate,
     current_user: User = Depends(require_roles(allow_guest=False)),
     db: AsyncSession = Depends(get_async_session),
 ) -> BookingInfo | None:
-    """Частично обновляет бронирование по его ID.
-
-    Поддерживает обновление cafe_id, даты, гостей, статуса, активности и
-    связей стол-слот.
-    Проверяет бизнес-логику и целостность данных.
-    """
+    """Частично обновляет бронирование по его ID."""
     user_id = current_user.id
     try:
         crud = BookingCRUD(db)
@@ -259,105 +214,14 @@ async def patch_booking(
                 detail='Пустой запрос: нет полей для обновления.',
             )
 
-        booking = await crud.get_booking_by_id(
-            booking_id,
+        updated = await validate_and_update_booking(
+            crud=crud,
+            booking_id=booking_id,
+            incoming_data=data,
             current_user_id=user_id,
+            patch_data=patch_data,
             is_staff=is_staff,
         )
-        if not booking:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail='Бронирование не найдено.',
-            )
-
-        validate_patch_cafe_change_requires_tables_slots(
-            incoming_data=data,
-            current_cafe_id=booking.cafe_id,
-        )
-
-        effective_cafe_id: UUID = data.get(
-            'cafe_id',
-            booking.cafe_id,
-        )
-        effective_booking_date: date = data.get(
-            'booking_date',
-            booking.booking_date,
-        )
-        effective_guest_number: int = data.get(
-            'guest_number',
-            booking.guest_number,
-        )
-
-        current_pairs = active_pairs(booking)
-
-        incoming_pairs: Optional[list[Pair]] = None
-        replace_tables_slots = 'tables_slots' in data
-        if replace_tables_slots:
-            incoming_pairs = [
-                (ts['table_id'], ts['slot_id']) for ts in data['tables_slots']
-            ]
-
-        # Итоговые пары (после PATCH)
-        effective_pairs: list[Pair] = (
-            incoming_pairs if (incoming_pairs is not None) else current_pairs
-        )
-
-        date_changed = effective_booking_date != booking.booking_date
-        guest_number_changed = 'guest_number' in data
-
-        # занятость проверяем только когда:
-        # - меняется дата -> все итоговые пары на новой дате
-        # - меняются tables_slots -> только пары на effective_booking_date
-        pairs_to_check_taken: list[Pair] = []
-        if date_changed:
-            pairs_to_check_taken = effective_pairs
-        elif replace_tables_slots and incoming_pairs is not None:
-            pairs_to_check_taken = list(
-                set(incoming_pairs) - set(current_pairs),
-            )
-
-        # вместимость проверяем когда:
-        # - меняется guest_number
-        # - меняются tables_slots (потому что меняются столы)
-        need_capacity_check = guest_number_changed or replace_tables_slots
-
-        if pairs_to_check_taken:
-            await validate_booking_db_constraints(
-                crud,
-                cafe_id=effective_cafe_id,
-                booking_date=effective_booking_date,
-                guest_number=effective_guest_number,
-                tables_slots=pairs_to_check_taken,
-                current_user=current_user,
-                exclude_booking_id=booking.id,
-                check_taken=True,
-                require_tables_slots=True,
-            )
-
-        if need_capacity_check and effective_pairs:
-            await validate_booking_db_constraints(
-                crud,
-                cafe_id=effective_cafe_id,
-                booking_date=effective_booking_date,
-                guest_number=effective_guest_number,
-                tables_slots=effective_pairs,
-                current_user=current_user,
-                exclude_booking_id=booking.id,
-                check_taken=False,
-                require_tables_slots=False,
-            )
-
-        updated = await create_or_update_booking(
-            crud=crud,
-            current_user_id=user_id,
-            booking=booking,
-            data=patch_data,
-            tables_slots=(
-                incoming_pairs if incoming_pairs is not None else None
-            ),
-        )
-
-        apply_status_is_active(updated, data)
 
         await db.commit()
         await db.refresh(

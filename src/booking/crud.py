@@ -6,7 +6,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.booking.models import Booking, BookingStatus, BookingTableSlot
+from src.booking.constants import BookingStatus
+from src.booking.models import Booking, BookingTableSlot
 from src.cafes.models import Cafe
 from src.slots.models import Slot
 from src.tables.models import Table
@@ -64,7 +65,7 @@ class BookingCRUD:
         )
         return result.scalars().all()
 
-    async def is_slot_taken(
+    async def is_table_slot_taken(
         self,
         table_id: UUID,
         slot_id: UUID,
