@@ -2,6 +2,7 @@
 """Базовый сервисный слой для работы с БД."""
 
 from typing import Any, Generic, Sequence, Type, TypeVar
+from uuid import UUID
 
 from pydantic import BaseModel
 from sqlalchemy import Select, and_, exists, func, select
@@ -38,7 +39,7 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
     async def get(
         self,
-        id: str,
+        id: UUID,
         session: AsyncSession,
     ) -> ModelType | None:
         """Получает объект по ID.
@@ -66,6 +67,9 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             relationships: Список имён связей для подгрузки
         Returns:
             Список опций для SQLAlchemy запроса
+        Examples:
+            options = self._build_options(['cafes', 'menus'])
+            stmt = select(Dish).options(*options)
 
         """
         if not relationships:
