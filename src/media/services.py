@@ -1,14 +1,21 @@
+# service.py
 import io
+import logging
 import uuid
 
 from PIL import Image
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.cache.decorators import cached
 from src.config import MEDIA_DIR
-from src.media.crud import create_image
+from src.media.crud import create_image, get_image_by_id
 from src.media.models import ImageMedia
+from src.media.schemas import ImageCacheSchema
 from src.media.validators import validate_image_upload
+
+
+logger = logging.getLogger('app')
 
 
 async def save_image(
@@ -39,3 +46,24 @@ async def save_image(
         storage_path=str(path),
         uploaded_by_id=uploaded_by_id,
     )
+
+
+@cached('MEDIA')
+async def get_image_for_download(
+    session: AsyncSession,
+    image_id: uuid.UUID,
+) -> ImageCacheSchema:
+    """Получение изображения для скачивания с валидацией и кэшированием."""
+    image = await get_image_by_id(session, image_id)
+    if not image or not image.active:
+        logger.warning(
+            'Изображение %s не найдено или неактивно',
+            image_id,
+            extra={'media_id': str(image_id)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Изображение не найдено.',
+        )
+
+    return ImageCacheSchema.model_validate(image)

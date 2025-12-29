@@ -1,20 +1,20 @@
 """Redis cache module.
 
 Основные компоненты:
-- RedisCache: асинхронный клиент с connection pooling
-- Декораторы: @cached, @cache_endpoint, @auto_invalidate
-- Функции инвалидации: invalidate_cafe, invalidate_dish, etc.
-- Генераторы ключей: key_cafe, key_cafes_list, etc.
+    - RedisCache: асинхронный клиент с connection pooling
+    - Декораторы: @cached, @auto_invalidate, @conditional_cache
+    - Функции инвалидации: invalidate_cafe, invalidate_dish, etc.
+    - Генераторы ключей: key_cafe, key_cafes_list, etc.
+
 """
 
-from .client import RedisCache, cache, get_cache
-from .decorators import (
+from src.cache.client import RedisCache, cache, get_cache
+from src.cache.decorators import (
     auto_invalidate,
-    cache_endpoint,
     cached,
     conditional_cache,
 )
-from .invalidation import (
+from src.cache.invalidation import (
     invalidate_all_actions,
     invalidate_all_cafes,
     invalidate_all_dishes,
@@ -23,7 +23,7 @@ from .invalidation import (
     invalidate_dish,
     invalidate_media,
 )
-from .keys import (
+from src.cache.keys import (
     PREFIX_ACTION,
     PREFIX_ACTIONS,
     PREFIX_CAFE,
@@ -31,7 +31,6 @@ from .keys import (
     PREFIX_DISH,
     PREFIX_DISHES,
     PREFIX_FUNC,
-    PREFIX_HTTP,
     PREFIX_MEDIA,
     key_action,
     key_actions_list,
@@ -44,7 +43,6 @@ from .keys import (
     key_dish,
     key_dishes_list,
     key_function_result,
-    key_http_endpoint,
     key_media,
     pattern_all_actions,
     pattern_all_cafes,
@@ -59,7 +57,6 @@ __all__ = [
     'get_cache',
     # Decorators
     'cached',
-    'cache_endpoint',
     'auto_invalidate',
     'conditional_cache',
     # Invalidation
@@ -78,7 +75,6 @@ __all__ = [
     'PREFIX_ACTION',
     'PREFIX_ACTIONS',
     'PREFIX_MEDIA',
-    'PREFIX_HTTP',
     'PREFIX_FUNC',
     # Keys - Functions
     'key_cafes_list',
@@ -92,7 +88,6 @@ __all__ = [
     'key_actions_list',
     'key_action',
     'key_media',
-    'key_http_endpoint',
     'key_function_result',
     # Keys - Patterns
     'pattern_all_cafes',

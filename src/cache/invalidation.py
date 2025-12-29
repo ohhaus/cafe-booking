@@ -2,8 +2,8 @@ import logging
 from typing import Sequence
 from uuid import UUID
 
-from .client import cache
-from .keys import (
+from src.cache.client import cache
+from src.cache.keys import (
     key_cafe_pattern,
     key_cafe_tables_pattern,
     key_dish,

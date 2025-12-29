@@ -1,18 +1,21 @@
+# views.py
 import logging
-from typing import cast
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.cache import cache
-from src.cache.keys import key_media
-from src.config import settings
 from src.database.sessions import get_async_session
-from src.media.crud import get_image
-from src.media.schemas import ImageCreateResponse
-from src.media.services import save_image
+from src.media.schemas import ImageCacheSchema, ImageCreateResponse
+from src.media.services import get_image_for_download, save_image
 from src.users.dependencies import require_roles
 from src.users.models import User, UserRole
 
@@ -24,7 +27,7 @@ logger = logging.getLogger('app')
 @router.post(
     '/',
     response_model=ImageCreateResponse,
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_201_CREATED,
 )
 async def upload_image(
     file: UploadFile = File(...),
@@ -67,49 +70,21 @@ async def upload_image(
 
 
 @router.get('/{image_id}')
-async def get_image_file(
+async def download_image(
     image_id: uuid.UUID,
     session: AsyncSession = Depends(get_async_session),
 ) -> FileResponse:
-    """Получить файл изображения в бинарном виде.
+    """Получить изображение по ID.
 
-    Кэширует metadata изображения (путь, mime_type, filename) на 60 минут,
-    чтобы не делать запрос в БД при каждом обращении.
+    Доступно всем, если изображение активно.
     """
-    cache_key = key_media(image_id)
-    cached_data = await cache.get(cache_key)
-
-    if cached_data:
-        logger.info(f'✓ Cache HIT: media {image_id}')
-        return FileResponse(
-            path=cached_data['path'],
-            media_type=cached_data['mime_type'],
-            filename=cached_data['filename'],
-        )
-
-    logger.debug(f'✗ Cache MISS: media {image_id}')
-    image = await get_image(session, image_id)
-
-    if not image or not image.active:
-        logger.warning(
-            'Изображение %s не найдено или неактивно',
-            image_id,
-            extra={'media_id': str(image_id)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail='Изображение не найдено.',
-        )
-
-    metadata = {
-        'path': image.storage_path,
-        'mime_type': cast(str, image.mime_type),
-        'filename': cast(str, image.original_filename),
-    }
-    await cache.set(cache_key, metadata, ttl=settings.cache.TTL_MEDIA)
+    image_data: ImageCacheSchema = await get_image_for_download(
+        session,
+        image_id,
+    )
 
     return FileResponse(
-        path=image.storage_path,
-        media_type=cast(str, image.mime_type),
-        filename=cast(str, image.original_filename),
+        path=image_data.storage_path,
+        media_type=image_data.mime_type or 'image/jpeg',
+        filename=image_data.original_filename or f'{image_id}.jpg',
     )
