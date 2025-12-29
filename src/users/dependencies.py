@@ -18,8 +18,8 @@ from src.users.models import User, UserRole
 
 security = HTTPBearer(auto_error=False)
 
-SECRET_KEY = settings.auth.secret_key
-ALGORITHM = settings.auth.algorithm
+SECRET_KEY = settings.auth.SECRET_KEY
+ALGORITHM = settings.auth.ALGORITHM
 
 
 def require_roles(

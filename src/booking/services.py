@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import date
 from typing import Any, Dict, Iterable, Optional, Tuple, Union
 from uuid import UUID
@@ -104,7 +105,7 @@ async def create_or_update_booking(
         await _create_or_update_booking_table_slots(
             crud=crud,
             booking=booking,
-            pairs=set(tables_slots),
+            new_pairs=set(tables_slots),
             booking_date=booking.booking_date,
         )
 
@@ -115,7 +116,7 @@ async def _create_or_update_booking_table_slots(
     *,
     crud: BookingCRUD,
     booking: Booking,
-    pairs: set[Pair],
+    new_pairs: set[Pair],
     booking_date: date,
 ) -> None:
     """Создаёт или обновляет связи бронирования со столами и слотами.
@@ -130,20 +131,15 @@ async def _create_or_update_booking_table_slots(
     await crud.db.refresh(booking, attribute_names=['booking_table_slots'])
 
     # Индексируем существующие связи по паре (table_id, slot_id)
-    existing_by_pair: dict[Pair, list] = {}
+    existing_pairs: dict[Pair, list] = defaultdict(list)
     for bts in booking.booking_table_slots:
-        (
-            existing_by_pair.setdefault(
-                (bts.table_id, bts.slot_id),
-                [],
-            ).append(bts)
-        )
+        existing_pairs[(bts.table_id, bts.slot_id)].append(bts)
 
     # 1) Для всех существующих связей:
-    #    - если пара нужна -> актуализируем дату, активируем (restore)
-    #    - если пара не нужна -> деактивируем (soft_delete)
-    for pair, rows in existing_by_pair.items():
-        keep = pair in pairs
+    #    - если пара нужна -> актуализируем дату, активируем
+    #    - если пара не нужна -> деактивируем
+    for pair, rows in existing_pairs.items():
+        keep = pair in new_pairs
         for bts in rows:
             if keep:
                 bts.booking_date = booking_date
@@ -154,11 +150,10 @@ async def _create_or_update_booking_table_slots(
                     bts.active = False
 
     # 2) Создаём недостающие пары
-    for table_id, slot_id in pairs:
-        if (table_id, slot_id) not in existing_by_pair:
-            await crud.create_booking_slot(
-                booking_id=booking.id,
-                table_id=table_id,
-                slot_id=slot_id,
-                booking_date=booking_date,
-            )
+    for table_id, slot_id in new_pairs - existing_pairs.keys():
+        await crud.create_booking_slot(
+            booking_id=booking.id,
+            table_id=table_id,
+            slot_id=slot_id,
+            booking_date=booking_date,
+        )

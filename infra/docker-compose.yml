@@ -28,6 +28,22 @@ services:
     networks:
       - backend
 
+  redis:
+    image: redis:7-alpine
+    container_name: infra-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass "password"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "password", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - backend
+
   app:
     build:
       context: ..
@@ -48,6 +64,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   backend:
