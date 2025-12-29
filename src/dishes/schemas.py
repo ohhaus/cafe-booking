@@ -33,7 +33,7 @@ class BaseDish(BaseModel):
 class DishCreate(BaseDish):
     """Создание блюда."""
 
-    price: int = Field(gt=DISH_MIN_PRICE, le=DISH_MAX_PRICE)
+    price: Decimal = Field(gt=DISH_MIN_PRICE, le=DISH_MAX_PRICE)
     cafes_id: list[UUID]
 
 
@@ -46,18 +46,21 @@ class DishUpdate(BaseModel):
         max_length=MAX_DESCRIPTION_LENGTH,
         min_length=MIN_DESCRIPTION_LENGTH,
     )
-    photo_id: Optional[str] = Field(None, max_length=UUID_LENGTH)
-    price: Optional[int] = Field(None, ge=DISH_MIN_PRICE, le=DISH_MAX_PRICE)
-    cafes_id: Optional[List[UUID]]
-    is_active: bool = True
-    price: int = Field(gt=0)
+    photo_id: Optional[UUID] = Field(None, max_length=UUID_LENGTH)
+    price: Optional[Decimal] = Field(
+        None,
+        ge=DISH_MIN_PRICE,
+        le=DISH_MAX_PRICE
+        )
+    cafes_id: Optional[List[UUID]] = None
+    is_active: Optional[bool] = None
 
 
 class DishInfo(BaseDish):
     """Полная информации о блюде."""
 
     id: UUID
-    cafes: List[CafeShortInfo] = []
+    cafes: list[CafeShortInfo] = Field(default_factory=list)
     is_active: bool = True
     created_at: datetime
     updated_at: datetime

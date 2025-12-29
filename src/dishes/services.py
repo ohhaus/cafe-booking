@@ -72,7 +72,7 @@ class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
 
         cafes = await self.get_related_objects(
             session=session,
-            field_name='dishes ',
+            field_name='dishes',
             ids=cafes_id,
             model=Cafe,
             required=True,
@@ -89,7 +89,7 @@ class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
         await session.refresh(db_obj)
         return db_obj
 
-    async def get_related_objects(
+    async def get_cafes_for_dish(
             self,
             session: AsyncSession,
             dish_id: UUID,
