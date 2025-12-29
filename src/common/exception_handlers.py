@@ -18,7 +18,7 @@ def add_exception_handlers(app: FastAPI) -> None:
     ) -> JSONResponse:
         # Универсальный обработчик наших кастомных исключений
         body = CustomErrorResponse(
-            code=exc.code,
+            code=exc.code.value,
             message=exc.message,
             ).model_dump()
 
@@ -40,7 +40,7 @@ def add_exception_handlers(app: FastAPI) -> None:
     ) -> JSONResponse:
         # Это ошибки валидации данных 422
         body = CustomErrorResponse(
-            code=HTTPStatus,
+            code=HTTPStatus.UNPROCESSABLE_ENTITY.value,
             message='Ошибка валидации данных',
             ).model_dump()
         return JSONResponse(
