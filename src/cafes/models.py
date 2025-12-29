@@ -61,8 +61,8 @@ class Cafe(Base):
     Relationships:
         managers: Связь многие-ко-многим с пользователями (User) через
             промежуточную таблицу cafes_managers. В выборку попадают только
-            пользователи с ролью MANAGER. Связь доступна только для чтения
-            (viewonly=True).
+            пользователи с ролью MANAGER и ADMIN.
+            Связь доступна только для чтения (viewonly=True).
 
     Ограничения:
         - Уникальность полей name, address и phone на уровне БД.
@@ -91,7 +91,7 @@ class Cafe(Base):
         primaryjoin=lambda: Cafe.id == cafes_managers.columns.cafe_id,
         secondaryjoin=and_(
             User.id == cafes_managers.columns.user_id,
-            User.role == UserRole.MANAGER,
+            User.role.in_((UserRole.ADMIN, UserRole.MANAGER)),
             User.active.is_(True),
         ),
         viewonly=True,

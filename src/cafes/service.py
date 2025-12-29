@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, exists, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
@@ -20,9 +20,33 @@ def manager_conditions(
     """Возвращает кортеж условий для запроса."""
     return (
         User.id.in_(ids),
-        User.role == UserRole.MANAGER,
+        User.role.in_((UserRole.ADMIN, UserRole.MANAGER)),
         User.active.is_(True),
     )
+
+
+async def manager_can_cud_cafe(
+    db: AsyncSession,
+    *,
+    user: User,
+    cafe_id: UUID,
+) -> bool:
+    """Ограничение CUD (Create, Update, Delete) для MANAGER.
+
+    Позволяет проводить опасные операции CUD только с теми кафе
+    с которыми он связан, в том числе слоты и столы.
+    """
+    if user.role != UserRole.MANAGER:
+        return True
+
+    stmt = select(
+        exists().where(
+            cafes_managers.columns.cafe_id == cafe_id,
+            cafes_managers.columns.user_id == user.id,
+        ),
+    )
+
+    return bool(await db.scalar(stmt))
 
 
 async def sync_cafe_managers(
@@ -30,7 +54,10 @@ async def sync_cafe_managers(
     cafe: Cafe,
     new_managers_ids: list[UUID],
 ) -> None:
-    """Синхронизирует список менеджеров кафе с переданным списком UUID."""
+    """Синхронизирует список менеджеров и админов кафе.
+
+    Переданным списком UUID.
+    """
     new_ids = set(new_managers_ids)
 
     if new_ids:
@@ -49,7 +76,7 @@ async def sync_cafe_managers(
             missing = new_ids - valid_ids
             raise ValueError(
                 'Некоторые managers_id не найдены'
-                'или не являются активными MANAGER: '
+                'или не являются активными ADMIN/MANAGER: '
                 f'{missing}',
             )
 
