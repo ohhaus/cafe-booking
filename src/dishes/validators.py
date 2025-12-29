@@ -1,3 +1,4 @@
+# src/dishes/validators.py
 from http import HTTPStatus
 
 from fastapi import HTTPException
@@ -5,23 +6,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.cafes.models import Cafe
+from src.common.exceptions import NotFoundException
 from src.dishes.models import Dish
 
 
 async def check_exists_dish(
     dish_id: int,
     session: AsyncSession,
-) -> Dish:
+) -> bool:
     """Проверка существования блюда по ID."""
-    result = await session.execute(
-        select(Dish).where(Dish.id == dish_id, Dish.is_active),
-    )
+    result = await session.execute(select(Dish).where(Dish.id == dish_id))
     dish = result.scalars().first()
     if not dish:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail='Блюдо не найдено',
-        )
+        raise NotFoundException
     return dish
 
 
@@ -43,7 +40,6 @@ async def check_exists_cafes_ids(
         ),
     )
     existing_ids = {row[0] for row in result.all()}
-
     missing = set(cafes_id) - existing_ids
     if missing:
         raise HTTPException(

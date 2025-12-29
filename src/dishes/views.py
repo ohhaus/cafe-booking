@@ -4,11 +4,13 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.cafes.models import Cafe
+from src.common.exceptions import NotFoundException, ValidationErrorException
 from src.database.sessions import get_async_session
 from src.dishes.models import Dish
 from src.dishes.responses import (
@@ -18,7 +20,7 @@ from src.dishes.responses import (
 )
 from src.dishes.schemas import DishCreate, DishInfo, DishUpdate
 from src.dishes.services import dish_service
-from src.dishes.validators import check_exists_cafes_ids
+from src.dishes.validators import check_exists_cafes_ids, check_exists_dish
 from src.users.dependencies import require_roles
 from src.users.models import User, UserRole
 
@@ -41,29 +43,22 @@ logger = logging.getLogger('app')
 )
 async def get_all_dishes(
     show_all: bool = False,
-    cafe_id: int | None = None,
-    current_user: User | None = Depends(
-        require_roles(
-            [UserRole.MANAGER, UserRole.ADMIN],
-            allow_guest=False,
-        ),
-    ),
+    cafe_id: UUID | None = None,
+    current_user: User = Depends(require_roles(allow_guest=False)),
     session: AsyncSession = Depends(get_async_session),
 ) -> list[DishInfo]:
     """Получение списка блюд с возможностью фильтрации."""
     logger.info(
         'Пользователь %s запросил все блюда с фильтрами: '
         'show_all=%s, cafe_id=%s',
-        current_user.id,
-        show_all,
-        cafe_id,
+        current_user.id, show_all, cafe_id,
         extra={'user_id': str(current_user.id)},
     )
 
-    can_view_all = (
-        current_user is not None
-        and current_user.role in (UserRole.ADMIN, UserRole.MANAGER)
-    )
+    can_view_all = False
+
+    if current_user.role in (UserRole.ADMIN, UserRole.MANAGER):
+        can_view_all = True
 
     filters = []
 
@@ -79,7 +74,22 @@ async def get_all_dishes(
         relationships=["cafes"],
     )
 
-    return [DishInfo.model_validate(d, from_attributes=True) for d in dishes]
+    if dishes is None:
+        raise NotFoundException
+
+    try:
+        return [
+            DishInfo.model_validate(d, from_attributes=True) for d in dishes
+            ]
+    except ValidationError as e:
+        logger.error(
+            'Ошибка валидации данных блюд',
+            extra={'user_id': str(current_user.id)},
+            exc_info=True,
+        )
+        raise ValidationErrorException(
+            f'Ошибка валидации данных блюда c ID: {d.id}'
+            )
 
 
 @router.post(
@@ -153,6 +163,20 @@ async def get_dish_by_id(
         extra={'user_id': str(current_user.id)},
         )
 
+    if not check_exists_dish(dish_id=dish_id, session=session):
+        logger.info(
+            'Блюда с ID: %s не существует',
+            dish_id,
+            extra={'user_id': str(current_user.id)},
+            )
+        raise NotFoundException
+    logger.info(
+        'Блюда с ID: %s все таки получается существует',
+        dish_id,
+        extra={'user_id': str(current_user.id)},
+        )
+    raise NotFoundException
+
     can_view_all = (
         current_user is not None
         and current_user.role in (UserRole.ADMIN, UserRole.MANAGER)
@@ -166,16 +190,10 @@ async def get_dish_by_id(
     dishes = await dish_service.get_multi(
         session=session,
         filters=filters,
-        relationships=["cafes"],
+        relationships=['cafes'],
     )
 
     dish = dishes[0] if dishes else None
-
-    if dish is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f'Dish with ID: {dish_id} not found',
-        )
 
     return DishInfo.model_validate(dish, from_attributes=True)
 
@@ -195,7 +213,6 @@ async def update_dish(
     session: AsyncSession = Depends(get_async_session),
 ) -> DishInfo:
     """Обновление информации о блюде по его ID."""
-    # Загружаем блюдо с предварительной загрузкой отношения cafes
     stmt = (
         select(
             Dish,
@@ -207,7 +224,7 @@ async def update_dish(
     dish = result.scalar_one_or_none()
 
     if not dish:
-        raise HTTPException(status_code=404, message='Dish not found')
+        raise NotFoundException
 
     # Обновляем данные
     for key, value in dish_update.dict(exclude_unset=True).items():

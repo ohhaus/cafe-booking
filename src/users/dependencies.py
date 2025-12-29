@@ -1,13 +1,15 @@
+# src/users/dependencies.py
 from typing import Awaitable, Callable
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 from jwt import PyJWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from src.common.exceptions import ForbiddenException, NotAuthorizedException
 from src.common.logging import log_action
 from src.config import settings
 from src.database.sessions import get_async_session
@@ -32,11 +34,7 @@ def require_roles(
         session: AsyncSession = Depends(get_async_session),
         credentials: HTTPAuthorizationCredentials | None = Depends(security),
     ) -> User | None:
-        credentials_exception = HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='Неавторизированный пользователь',
-            headers={'WWW-Authenticate': 'Bearer'},
-        )
+        credentials_exception = NotAuthorizedException
 
         if not credentials:
             if allow_guest:
@@ -71,15 +69,9 @@ def require_roles(
             raise credentials_exception
 
         if only_active and not user.active:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail='Пользователь не активен. Обратитесь к администрации',
-            )
+            raise ForbiddenException
         if allowed_roles and user.role not in allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail='Доступ запрещен',
-            )
+            raise ForbiddenException
         return user
 
     return dependency
