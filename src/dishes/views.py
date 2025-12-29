@@ -95,7 +95,7 @@ async def get_all_dishes(
             exc_info=True,
         )
         raise ValidationErrorException(
-            'Ошибка валидации данных блюда'
+            'Ошибка валидации данных блюда',
             )
 
 

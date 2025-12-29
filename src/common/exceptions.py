@@ -14,7 +14,13 @@ class AppException(Exception):
 
 
 class NotAuthorizedException(AppException):
-    def __init__(self, message: str = "Неавторизированный пользователь"):
+    """Ошибка неавторизированного пользователя."""
+
+    def __init__(
+            self,
+            message: str = 'Неавторизированный пользователь',
+    ) -> None:
+        """Инициализирует ошибку неавторизированного пользователя."""
         super().__init__(
             status_code=HTTPStatus.UNAUTHORIZED,
             code=HTTPStatus.UNAUTHORIZED,
@@ -22,7 +28,10 @@ class NotAuthorizedException(AppException):
 
 
 class ValidationErrorException(AppException):
-    def __init__(self, message: str = "Ошибка валидации данных"):
+    """Ошибка валидации данных."""
+
+    def __init__(self, message: str = "Ошибка валидации данных") -> None:
+        """Инициализирует ошибку валидации данных."""
         super().__init__(
             status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
             code=HTTPStatus.UNPROCESSABLE_ENTITY,
@@ -30,7 +39,10 @@ class ValidationErrorException(AppException):
 
 
 class ForbiddenException(AppException):
-    def __init__(self, message: str = "Доступ запрещен"):
+    """Ошибка доступа запрещен."""
+
+    def __init__(self, message: str = "Доступ запрещен") -> None:
+        """Инициализирует ошибку доступа запрещен."""
         super().__init__(
             status_code=HTTPStatus.FORBIDDEN,
             code=HTTPStatus.FORBIDDEN,
@@ -38,8 +50,23 @@ class ForbiddenException(AppException):
 
 
 class NotFoundException(AppException):
-    def __init__(self, message: str = "Данные не найдены"):
+    """Ошибка данных не найдены."""
+
+    def __init__(self, message: str = "Данные не найдены") -> None:
+        """Инициализирует ошибку данных не найдены."""
         super().__init__(
             status_code=HTTPStatus.NOT_FOUND,
             code=HTTPStatus.NOT_FOUND,
             message=message)
+
+
+class BadRequestException(AppException):
+    """Ошибка в параметрах запроса."""
+
+    def __init__(self, message: str = "Ошибка в параметрах запроса") -> None:
+        """Инициализирует ошибку запроса (HTTP 400)."""
+        super().__init__(
+            status_code=HTTPStatus.BAD_REQUEST,
+            code=HTTPStatus.BAD_REQUEST,
+            message=message,
+        )

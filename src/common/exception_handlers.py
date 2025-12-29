@@ -11,6 +11,7 @@ from src.common.schemas import CustomErrorResponse
 
 
 def add_exception_handlers(app: FastAPI) -> None:
+    """Добавляет обработчики Кастомных исключений в наше приложение."""
     @app.exception_handler(AppException)
     async def app_exception_handler(
         request: Request,
