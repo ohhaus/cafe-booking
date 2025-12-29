@@ -112,7 +112,9 @@ async def get_all_dishes(
 async def create_dish(
     dish_in: DishCreate,
     session: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_roles(allow_guest=False)),
+    current_user: User = Depends(
+        require_roles([UserRole.MANAGER, UserRole.ADMIN]),
+    ),
 ) -> DishInfo:
     """Создание нового блюда."""
     logger.info(
