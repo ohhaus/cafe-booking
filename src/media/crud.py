@@ -32,7 +32,7 @@ async def create_image(
     return image
 
 
-async def get_image(
+async def get_image_by_id(
     session: AsyncSession,
     image_id: uuid.UUID,
 ) -> ImageMedia | None:

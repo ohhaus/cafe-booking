@@ -1,82 +1,102 @@
-import hashlib
 from typing import Any
 from uuid import UUID
 
 
-def key_cafes_list(
-    show_all: bool | None = None, user_role: str = 'user',
-) -> str:
-    """Ключ для списка кафе."""
-    parts = ['cafes', f'role={user_role}']
+PREFIX_CAFE = 'cafe'
+PREFIX_CAFES = 'cafes'
+PREFIX_DISH = 'dish'
+PREFIX_DISHES = 'dishes'
+PREFIX_ACTION = 'action'
+PREFIX_ACTIONS = 'actions'
+PREFIX_MEDIA = 'media'
+
+
+def _build_key(*parts: Any) -> str:
+    """Формирует ключ Redis из частей, соединяя их через ':'.
+
+    None-значения игнорируются.
+
+    Example:
+        >>> _build_key('media', UUID('...'))
+        'media:<uuid>'
+
+    """
+    return ':'.join(str(p) for p in parts if p is not None)
+
+
+def key_cafes_list(show_all: bool | None = None) -> str:
+    """Возвращает ключ кэша для списка кафе."""
+    parts = [PREFIX_CAFES, 'list']
     if show_all is not None:
-        parts.append(f'show_all={show_all}')
-    return ':'.join(parts)
+        parts.append(f'show_all={str(show_all).lower()}')
+    return _build_key(*parts)
 
 
-def key_cafe(cafe_id: UUID, include_inactive: bool = False) -> str:
-    """Ключ для кафе."""
-    return f'cafe:{cafe_id}:inactive={include_inactive}'
+def key_cafe(cafe_id: UUID) -> str:
+    """Возвращает ключ кэша для кафе по идентификатору."""
+    return _build_key(PREFIX_CAFE, cafe_id)
 
 
-def key_dishes_list(
-    cafe_id: UUID | None = None, show_all: bool = False,
-) -> str:
-    """Ключ для списка блюд."""
-    parts = ['dishes', f'show_all={show_all}']
-    if cafe_id:
-        parts.append(f'cafe={cafe_id}')
-    return ':'.join(parts)
+def pattern_cafe(cafe_id: UUID) -> str:
+    """Возвращает шаблон ключей для одного кафе."""
+    return f'{PREFIX_CAFE}:{cafe_id}*'
 
 
-def key_dish(dish_id: UUID) -> str:
-    """Ключ для блюда."""
-    return f'dish:{dish_id}'
+def pattern_all_cafes() -> str:
+    """Возвращает шаблон ключей для всех кафе."""
+    return f'{PREFIX_CAFES}*'
 
 
 def key_cafe_tables(cafe_id: UUID) -> str:
-    """Ключ для столов кафе."""
-    return f'cafe:{cafe_id}:tables'
+    """Возвращает ключ кэша для списка столов кафе."""
+    return _build_key(PREFIX_CAFE, cafe_id, 'tables')
 
 
 def key_cafe_table(cafe_id: UUID, table_id: UUID) -> str:
-    """Ключ для стола."""
-    return f'cafe:{cafe_id}:table:{table_id}'
+    """Возвращает ключ кэша для конкретного стола кафе."""
+    return _build_key(PREFIX_CAFE, cafe_id, 'table', table_id)
 
 
-def key_media(media_id: UUID) -> str:
-    """Ключ для медиа."""
-    return f'media:{media_id}'
+def pattern_cafe_tables(cafe_id: UUID) -> str:
+    """Возвращает шаблон ключей для всех столов кафе."""
+    return f'{PREFIX_CAFE}:{cafe_id}:table*'
 
 
-def key_actions_list(active_only: bool = True) -> str:
-    """Ключ для списка акций."""
-    return f'actions:active={active_only}'
+def key_dishes_list(cafe_id: int | None = None, show_all: bool = False) -> str:
+    """Возвращает ключ кэша для списка блюд."""
+    parts = [PREFIX_DISHES, 'list']
+    if cafe_id is not None:
+        parts.append(f'cafe_id={cafe_id}')
+    if show_all:
+        parts.append('show_all=true')
+    return _build_key(*parts)
+
+
+def key_dish(dish_id: UUID) -> str:
+    """Возвращает ключ кэша для блюда по идентификатору."""
+    return _build_key(PREFIX_DISH, dish_id)
+
+
+def pattern_all_dishes() -> str:
+    """Возвращает шаблон ключей для всех блюд."""
+    return f'{PREFIX_DISHES}*'
+
+
+def key_actions_list() -> str:
+    """Возвращает ключ кэша для списка акций."""
+    return f'{PREFIX_ACTIONS}:list'
 
 
 def key_action(action_id: UUID) -> str:
-    """Ключ для акции."""
-    return f'action:{action_id}'
+    """Возвращает ключ кэша для акции по идентификатору."""
+    return _build_key(PREFIX_ACTION, action_id)
 
 
-def key_http_endpoint(
-    method: str, path: str, query_params: dict[str, Any] | None = None,
-) -> str:
-    """Ключ для HTTP эндпоинта."""
-    parts = ['http', method.upper(), path]
-
-    if query_params:
-        sorted_params = sorted(query_params.items())
-        params_str = '&'.join(f'{k}={v}' for k, v in sorted_params)
-        if len(params_str) > 50:
-            params_str = hashlib.md5(params_str.encode()).hexdigest()[:8]
-        parts.append(params_str)
-
-    return ':'.join(parts)
+def pattern_all_actions() -> str:
+    """Возвращает шаблон ключей для всех акций."""
+    return f'{PREFIX_ACTIONS}*'
 
 
-def key_function_result(func_name: str, *args: Any, **kwargs: Any) -> str:
-    """Ключ для результата функции."""
-    args_hash = hashlib.md5(
-        str(args).encode() + str(kwargs).encode(),
-    ).hexdigest()[:8]
-    return f'func:{func_name}:{args_hash}'
+def key_media(media_id: UUID) -> str:
+    """Возвращает ключ кэша для медиа-объекта."""
+    return _build_key(PREFIX_MEDIA, media_id)
