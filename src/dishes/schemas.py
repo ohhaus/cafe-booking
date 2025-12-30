@@ -20,25 +20,27 @@ from src.config import (
 class BaseDish(BaseModel):
     """Базовая схема блюда."""
 
-    name: str = Field(..., max_length=MAX_NAME_LENGTH)
-    description: Optional[str] = Field(
-        None,
-        max_length=MAX_DESCRIPTION_LENGTH,
-        min_length=MIN_DESCRIPTION_LENGTH,
+    name: str
+    description: str | None = None
+    photo_id: UUID
+
+    price: Decimal = Field(
+        ...,
+        ge=DISH_MIN_PRICE,
+        le=DISH_MAX_PRICE,
+        multiple_of=Decimal('0.01'),
+        examples=[DISH_MAX_PRICE],
     )
-    photo_id: Optional[UUID] = Field(None, description='UUID фото')
-    price: Decimal = Field(..., ge=DISH_MIN_PRICE, le=DISH_MAX_PRICE)
 
 
 class DishCreate(BaseDish):
-    """Создание блюда."""
+    """Схема блюда для создания нового."""
 
-    price: Decimal = Field(gt=DISH_MIN_PRICE, le=DISH_MAX_PRICE)
     cafes_id: list[UUID]
 
 
 class DishUpdate(BaseModel):
-    """Обновление блюда."""
+    """Схема блюда для обновления."""
 
     name: Optional[str] = Field(None, max_length=MAX_NAME_LENGTH)
     description: Optional[str] = Field(
@@ -50,7 +52,7 @@ class DishUpdate(BaseModel):
     price: Optional[Decimal] = Field(
         None,
         ge=DISH_MIN_PRICE,
-        le=DISH_MAX_PRICE
+        le=DISH_MAX_PRICE,
         )
     cafes_id: Optional[List[UUID]] = None
     is_active: Optional[bool] = None

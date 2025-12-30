@@ -1,3 +1,4 @@
+from decimal import Decimal
 from pathlib import Path
 import secrets
 
@@ -18,8 +19,8 @@ MIN_DESCRIPTION_LENGTH: int = 1
 MIN_TG_LENGTH: int = 5
 MAX_TG_LENGTH: int = 64
 UUID_LENGTH: int = 36
-DISH_MIN_PRICE: int = 0
-DISH_MAX_PRICE: int = 10000
+DISH_MIN_PRICE: Decimal = 0
+DISH_MAX_PRICE: Decimal = 10000.00
 
 # Файлы и медиа
 BYTES_IN_MB: int = 1024**2
