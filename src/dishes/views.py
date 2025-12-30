@@ -219,7 +219,9 @@ async def get_dish_by_id(
 async def update_dish(
     dish_id: UUID,
     dish_update: DishUpdate,
-    current_user: User = Depends(require_roles(allow_guest=False)),
+    current_user: User = Depends(
+        require_roles([UserRole.MANAGER, UserRole.ADMIN]),
+    ),
     session: AsyncSession = Depends(get_async_session),
 ) -> DishInfo:
     """Обновление информации о блюде по его ID."""
