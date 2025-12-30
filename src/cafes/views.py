@@ -1,13 +1,12 @@
 import asyncio
 import logging
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.cafes.crud import CafeService
+from src.cafes.crud import cafe_crud
 from src.cafes.responses import (
     CREATE_RESPONSES,
     GET_BY_ID_RESPONSES,
@@ -42,17 +41,8 @@ async def create_cafe(
     db: AsyncSession = Depends(get_async_session),
 ) -> CafeInfo:
     """Создает новое кафе. Только для администраторов и менеджеров."""
-    logger.info(
-        'Пользователь %s инициализировал создание кафе %s',
-        current_user.id,
-        cafe_data.name,
-        extra={'user_id': str(current_user.id)},
-    )
-
     try:
-        crud = CafeService()
-
-        cafe = await crud.create_cafe(db, cafe_data)
+        cafe = await cafe_crud.create_cafe(db, cafe_data)
 
         logger.info(
             'Кафе %s (%s) успешно создано',
@@ -139,8 +129,8 @@ async def create_cafe(
     responses=GET_RESPONSES,
 )
 async def get_all_cafes(
-    show_all: Optional[bool] = Query(
-        None,
+    show_all: bool = Query(
+        False,
         title='Показывать все кафе?',
         description=(
             'Показывать все кафе или нет. По умолчанию показывает все кафе'
@@ -155,13 +145,10 @@ async def get_all_cafes(
     для пользователей - только активные.
     """
     try:
-        crud = CafeService()
         privileged = is_admin_or_manager(current_user)
-        include_inactive = (
-            (True if show_all is None else show_all) if privileged else False
-        )
+        include_inactive = show_all if privileged else False
 
-        cafes = await crud.get_list_cafe(
+        cafes = await cafe_crud.get_list_cafe(
             db,
             include_inactive=include_inactive,
         )
@@ -182,6 +169,7 @@ async def get_all_cafes(
         raise
 
     except DatabaseError as e:
+        await db.rollback()
         logger.error(
             'Ошибка базы данных при получении списка кафе: %s',
             str(e),
@@ -222,20 +210,9 @@ async def get_cafe_by_id(
     для пользователей - только активные.
     """
     try:
-        crud = CafeService()
         include_inactive = is_admin_or_manager(current_user)
-        logger.info(
-            'Пользователь %s запрашивает кафе %s (include_inactive=%s)',
-            current_user.id,
-            cafe_id,
-            include_inactive,
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-            },
-        )
 
-        cafe = await crud.get_cafe_by_id(
+        cafe = await cafe_crud.get_cafe_by_id(
             db,
             cafe_id=cafe_id,
             include_inactive=include_inactive,
@@ -262,6 +239,7 @@ async def get_cafe_by_id(
         raise
 
     except DatabaseError as e:
+        await db.rollback()
         logger.error(
             'Ошибка базы данных при получении кафе: %s',
             str(e),
@@ -310,17 +288,7 @@ async def update_cafe(
     Только для администраторов и менеджеров.
     """
     try:
-        crud = CafeService()
-
-        logger.info(
-            'Пользователь %s обновляет кафе %s (fields=%s)',
-            current_user.id,
-            cafe_id,
-            sorted(cafe_data.model_fields_set),
-            extra={'user_id': str(current_user.id), 'cafe_id': str(cafe_id)},
-        )
-
-        cafe = await crud.get_cafe_by_id(
+        cafe = await cafe_crud.get_cafe_by_id(
             db,
             cafe_id=cafe_id,
             include_inactive=True,
@@ -331,14 +299,15 @@ async def update_cafe(
                 detail='Кафе не найдено',
             )
 
-        cafe = await crud.update_cafe(
+        cafe = await cafe_crud.update_cafe(
             db,
             cafe,
             cafe_data,
         )
         logger.info(
-            'Кафе %s успешно обновлено',
+            'Кафе %s обновлено пользователем %s',
             cafe.id,
+            current_user.id,
             extra={
                 'user_id': str(current_user.id),
                 'cafe_id': str(cafe.id),

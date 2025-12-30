@@ -1,15 +1,15 @@
 import asyncio
 import logging
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.cafes.cafe_scoped import get_cafe_or_none
 from src.cafes.service import is_admin_or_manager
 from src.database.sessions import get_async_session
-from src.tables.crud import TableService
+from src.tables.crud import table_crud
 from src.tables.responses import (
     CREATE_RESPONSES,
     GET_BY_ID_RESPONSES,
@@ -43,8 +43,8 @@ logger = logging.getLogger('app')
 )
 async def get_tables(
     cafe_id: UUID,
-    show_all: Optional[bool] = Query(
-        None,
+    show_all: bool = Query(
+        False,
         title='Показывать все столы?',
         description='Показывать все столы в кафе или нет.',
     ),
@@ -57,9 +57,7 @@ async def get_tables(
     для пользователей - только активные.
     """
     try:
-        crud = TableService()
-
-        cafe = await TableService._get_cafe_or_none(db, cafe_id)
+        cafe = await get_cafe_or_none(db, cafe_id)
         if not cafe:
             logger.warning(
                 'Кафе %s не найдено при получении списка столов',
@@ -75,30 +73,17 @@ async def get_tables(
             )
 
         privileged = is_admin_or_manager(current_user)
-        include_all = (
-            (True if show_all is None else show_all) if privileged else False
-        )
+        include_all = show_all if privileged else False
 
-        tables = await crud.list_tables(
+        tables = await table_crud.list_tables(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
             show_all=include_all,
         )
 
-        logger.info(
-            'GET /cafe/%s/tables: найдено %d (include_all=%s, show_all=%s)',
-            cafe_id,
-            len(tables),
-            include_all,
-            show_all,
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-            },
-        )
-
         return [TableWithCafeInfo.model_validate(table) for table in tables]
+
     except asyncio.CancelledError:
         raise
 
@@ -155,31 +140,18 @@ async def create_table(
     ),
     db: AsyncSession = Depends(get_async_session),
 ) -> TableWithCafeInfo:
-    """Создает новое стола кафе.
+    """Создает новый стол в кафе.
 
     Только для администраторов и менеджеров.
     """
-    logger.info(
-        'Пользователь %s инициализировал создание стола '
-        '(cafe=%s, seat_number=%s)',
-        current_user.id,
-        cafe_id,
-        getattr(table_data, 'count_place', None),
-        extra={
-            'user_id': str(current_user.id),
-            'cafe_id': str(cafe_id),
-        },
-    )
-
     try:
-        crud = TableService()
-        table = await crud.create_table(
+        table = await table_crud.create_table(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
             data=table_data,
         )
-        table = await crud.get_table(
+        table = await table_crud.get_table(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
@@ -192,8 +164,9 @@ async def create_table(
             )
 
         logger.info(
-            'Стол %s успешно создан (cafe=%s)',
+            'Стол %s успешно создан пользователем %s (cafe=%s)',
             table.id,
+            current_user.id,
             cafe_id,
             extra={
                 'user_id': str(current_user.id),
@@ -336,21 +309,7 @@ async def get_table_by_id(
     для пользователей - только активные.
     """
     try:
-        crud = TableService()
-
-        logger.info(
-            'Пользователь %s запрашивает стол %s (cafe=%s)',
-            current_user.id,
-            table_id,
-            cafe_id,
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-                'table_id': str(table_id),
-            },
-        )
-
-        table = await crud.get_table(
+        table = await table_crud.get_table(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
@@ -439,22 +398,7 @@ async def update_table(
     Только для администраторов и менеджеров.
     """
     try:
-        crud = TableService()
-
-        logger.info(
-            'Пользователь %s обновляет стол %s (cafe=%s, fields=%s)',
-            current_user.id,
-            table_id,
-            cafe_id,
-            sorted(table_data.model_fields_set),
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-                'table_id': str(table_id),
-            },
-        )
-
-        table = await crud.update_table(
+        table = await table_crud.update_table(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
@@ -468,8 +412,9 @@ async def update_table(
             )
 
         logger.info(
-            'Стол %s успешно обновлён (cafe=%s)',
+            'Стол %s успешно обновлён пользователем %s (cafe=%s)',
             table.id,
+            current_user.id,
             cafe_id,
             extra={
                 'user_id': str(current_user.id),

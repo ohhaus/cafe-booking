@@ -11,6 +11,7 @@ from src.cafes.models import Cafe
 from src.database.service import DatabaseService
 from src.dishes.models import Dish, dish_cafe
 from src.dishes.schemas import DishCreate, DishUpdate
+from src.dishes.validators import check_exists_dish
 
 
 class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
@@ -92,12 +93,31 @@ class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
             self,
             session: AsyncSession,
             dish_id: UUID,
-            ) -> List[Cafe]:
-        """Получает связанные кафе для данного блюда."""
+    ) -> List[Cafe]:
+        """Получает связанные активные кафе для данного блюда.
+
+        Args:
+            session: Сессия БД
+            dish_id: UUID блюда
+
+        Returns:
+            Список объектов Cafe
+
+        Raises:
+            NotFoundException: Если блюдо не найдено
+
+        """
+        # Сначала проверяем, что блюдо существует
+        await check_exists_dish(dish_id, session)
+
+        # Получаем кафе через таблицу связи
         query = (
             select(Cafe)
             .join(dish_cafe)
-            .filter(dish_cafe.c.dish_id == dish_id)
+            .where(
+                dish_cafe.c.dish_id == dish_id,
+                Cafe.active.is_(True),
+            )
         )
         result = await session.execute(query)
         return result.scalars().all()

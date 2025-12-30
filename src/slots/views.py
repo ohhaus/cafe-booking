@@ -1,15 +1,15 @@
 import asyncio
 import logging
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.cafes.cafe_scoped import get_cafe_or_none
 from src.cafes.service import is_admin_or_manager
 from src.database.sessions import get_async_session
-from src.slots.crud import SlotService
+from src.slots.crud import slot_crud
 from src.slots.responses import (
     CREATE_RESPONSES,
     GET_BY_ID_RESPONSES,
@@ -42,8 +42,8 @@ logger = logging.getLogger('app')
 )
 async def get_time_slots(
     cafe_id: UUID,
-    show_all: Optional[bool] = Query(
-        None,
+    show_all: bool = Query(
+        False,
         title='Показывать все временные слоты?',
         description='Показывать все временные слоты в кафе или нет.',
     ),
@@ -56,9 +56,7 @@ async def get_time_slots(
     для пользователей - только активные.
     """
     try:
-        crud = SlotService()
-
-        cafe = await SlotService._get_cafe_or_none(db, cafe_id)
+        cafe = await get_cafe_or_none(db, cafe_id)
         if not cafe:
             logger.warning(
                 'Кафе %s не найдено при получении списка слотов',
@@ -74,25 +72,13 @@ async def get_time_slots(
             )
 
         privileged = is_admin_or_manager(current_user)
-        include_all = (
-            (True if show_all is None else show_all) if privileged else False
-        )
+        include_all = show_all if privileged else False
 
-        slots = await crud.list_slots(
+        slots = await slot_crud.list_slots(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
             show_all=include_all,
-        )
-
-        logger.info(
-            'GET /cafe/%s/time_slots: найдено %d '
-            '(include_all=%s, show_all=%s)',
-            cafe_id,
-            len(slots),
-            include_all,
-            show_all,
-            extra={'user_id': str(current_user.id), 'cafe_id': str(cafe_id)},
         )
 
         return [TimeSlotWithCafeInfo.model_validate(slot) for slot in slots]
@@ -150,28 +136,15 @@ async def create_time_slot(
 
     Только для администраторов и менеджеров.
     """
-    logger.info(
-        'Пользователь %s инициализировал создание слота '
-        '(cafe=%s, start=%s, end=%s)',
-        current_user.id,
-        cafe_id,
-        slot_data.start_time,
-        slot_data.end_time,
-        extra={'user_id': str(current_user.id), 'cafe_id': str(cafe_id)},
-    )
-
     try:
-        crud = SlotService()
-
-        slot = await crud.create_slot(
+        slot = await slot_crud.create_slot(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
             data=slot_data,
         )
 
-        # перечитываем, чтобы гарантированно был cafe под response_model
-        slot = await crud.get_slot(
+        slot = await slot_crud.get_slot(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
@@ -184,8 +157,9 @@ async def create_time_slot(
             )
 
         logger.info(
-            'Слот %s успешно создан (cafe=%s)',
+            'Слот %s успешно создан пользователем %s (cafe=%s)',
             slot.id,
+            current_user.id,
             cafe_id,
             extra={
                 'user_id': str(current_user.id),
@@ -302,25 +276,11 @@ async def get_time_slot_by_id(
 ) -> TimeSlotWithCafeInfo:
     """Получение информации о временном слоте в кафе по его ID.
 
-    Для администраторов и менеджеров - все столы,
+    Для администраторов и менеджеров - видят активные и не активные слоты,
     для пользователей - только активные.
     """
     try:
-        crud = SlotService()
-
-        logger.info(
-            'Пользователь %s запрашивает слот %s (cafe=%s)',
-            current_user.id,
-            slot_id,
-            cafe_id,
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-                'slot_id': str(slot_id),
-            },
-        )
-
-        slot = await crud.get_slot(
+        slot = await slot_crud.get_slot(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
@@ -408,22 +368,7 @@ async def update_time_slot(
     Только для администраторов и менеджеров.
     """
     try:
-        crud = SlotService()
-
-        logger.info(
-            'Пользователь %s обновляет слот %s (cafe=%s, fields=%s)',
-            current_user.id,
-            slot_id,
-            cafe_id,
-            sorted(slot_data.model_fields_set),
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-                'slot_id': str(slot_id),
-            },
-        )
-
-        slot = await crud.update_slot(
+        slot = await slot_crud.update_slot(
             db,
             current_user=current_user,
             cafe_id=cafe_id,
@@ -437,8 +382,9 @@ async def update_time_slot(
             )
 
         logger.info(
-            'Слот %s успешно обновлён (cafe=%s)',
+            'Слот %s успешно обновлён пользователем %s (cafe=%s)',
             slot.id,
+            current_user.id,
             cafe_id,
             extra={
                 'user_id': str(current_user.id),

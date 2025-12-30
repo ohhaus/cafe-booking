@@ -1,3 +1,4 @@
+# src.common.responses.py
 """Фабрика ответов API.
 
 Формирует пресеты ответов API.
