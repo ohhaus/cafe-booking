@@ -7,6 +7,13 @@ from src.common.logging import log_action
 from src.database.sessions import get_async_session
 from src.users.dependencies import require_roles
 from src.users.models import User, UserRole
+from src.users.responses import (
+    USER_CREATE_RESPONSES,
+    USER_LIST_RESPONSES,
+    USER_ME_PATCH_RESPONSES,
+    USER_RETRIEVE_RESPONSES,
+    USER_UPDATE_RESPONSES,
+)
 from src.users.schemas import UserCreate, UserRead, UserUpdate
 from src.users.services import user_crud
 from src.users.validators import (
@@ -30,6 +37,7 @@ router = APIRouter()
         '<b>Обязательные поля:</b> <ul><li>username</li><li>password</li>'
         '<li>email или phone</li></ul>'
     ),
+    responses=USER_CREATE_RESPONSES,
 )
 @log_action('Регистрация нового пользователя.')
 async def register_user(
@@ -56,6 +64,7 @@ async def register_user(
         'Возвращает информацию о текущем пользователе. Только для '
         'авторизированных пользователей'
     ),
+    responses=USER_LIST_RESPONSES,
 )
 @log_action('Получение данных о текущем пользователе.')
 async def get_me(
@@ -74,6 +83,7 @@ async def get_me(
         'Возвращает обновленную информацию о пользователе. Только для '
         'авторизированных пользователей'
     ),
+    responses=USER_ME_PATCH_RESPONSES,
 )
 @log_action('Обновление данных текущего пользователя.')
 async def update_me(
@@ -98,6 +108,7 @@ async def update_me(
         'Возвращает информацию о всех пользователях. Только для '
         'администраторов или менеджеров'
     ),
+    responses=USER_LIST_RESPONSES,
 )
 @log_action('Получение данных о всех пользователях.')
 async def get_all_users(
@@ -119,6 +130,7 @@ async def get_all_users(
         'Возвращает информацию о пользователе по его ID. Только для '
         'администраторов или менеджеров'
     ),
+    responses=USER_RETRIEVE_RESPONSES,
 )
 @log_action('Получение данных пользователя по id.')
 async def get_user(
@@ -147,6 +159,7 @@ async def get_user(
         'Возвращает обновленную информацию о пользователе по его ID. '
         'Только для администраторов или менеджеров'
     ),
+    responses=USER_UPDATE_RESPONSES,
 )
 @log_action('Обновление данных пользователя по id.')
 async def update_user_by_id(
