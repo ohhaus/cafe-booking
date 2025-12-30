@@ -4,7 +4,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 
 from src.api import main_router
-from src.cache import cache
+from src.cache.client import cache
 
 
 @asynccontextmanager

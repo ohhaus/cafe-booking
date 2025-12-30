@@ -1,4 +1,3 @@
-# views.py
 import logging
 import uuid
 
@@ -14,7 +13,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.sessions import get_async_session
-from src.media.schemas import ImageCacheSchema, ImageCreateResponse
+from src.media.schemas import ImageCreateResponse
 from src.media.services import get_image_for_download, save_image
 from src.users.dependencies import require_roles
 from src.users.models import User, UserRole
@@ -47,15 +46,12 @@ async def upload_image(
             file=file,
             uploaded_by_id=current_user.id,
         )
-
         logger.info(
             'Изображение %s успешно загружено',
             image.id,
             extra={'user_id': str(current_user.id), 'media_id': str(image.id)},
         )
-
         return ImageCreateResponse(media_id=image.id)
-
     except Exception as e:
         logger.error(
             'Ошибка при загрузке изображения: %s',
@@ -78,10 +74,7 @@ async def download_image(
 
     Доступно всем, если изображение активно.
     """
-    image_data: ImageCacheSchema = await get_image_for_download(
-        session,
-        image_id,
-    )
+    image_data = await get_image_for_download(session, image_id)
 
     return FileResponse(
         path=image_data.storage_path,

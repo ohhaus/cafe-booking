@@ -1,17 +1,18 @@
-# service.py
 import io
 import logging
+from pathlib import Path
 import uuid
 
 from PIL import Image
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.cache.decorators import cached
-from src.config import MEDIA_DIR
+from src.cache.client import cache
+from src.cache.keys import key_media
+from src.config import MEDIA_DIR, settings
 from src.media.crud import create_image, get_image_by_id
 from src.media.models import ImageMedia
-from src.media.schemas import ImageCacheSchema
+from src.media.schemas import ImageMediaSchema
 from src.media.validators import validate_image_upload
 
 
@@ -23,20 +24,19 @@ async def save_image(
     file: UploadFile,
     uploaded_by_id: uuid.UUID,
 ) -> ImageMedia:
-    """Валидация, сохранение файла на диск и создание записи Image в БД."""
+    """Сохраняет загруженное изображение и кэширует метаданные."""
     raw_bytes = await validate_image_upload(file)
-    pil_image: Image.Image = Image.open(io.BytesIO(raw_bytes))
-    pil_image = pil_image.convert('RGB')
+    pil_image = Image.open(io.BytesIO(raw_bytes)).convert('RGB')
 
     image_id = uuid.uuid4()
     filename = f'{image_id}.jpg'
-    path = MEDIA_DIR / filename
+    path: Path = MEDIA_DIR / filename
     path.parent.mkdir(parents=True, exist_ok=True)
-    pil_image.save(path, format='JPEG')
 
+    pil_image.save(path, format='JPEG')
     size = path.stat().st_size
 
-    return await create_image(
+    image = await create_image(
         session,
         id=image_id,
         filename=filename,
@@ -47,14 +47,35 @@ async def save_image(
         uploaded_by_id=uploaded_by_id,
     )
 
+    schema = ImageMediaSchema.model_validate(image)
+    await cache.set(
+        key_media(image_id),
+        schema.model_dump(mode='json'),
+        ttl=settings.cache.TTL_MEDIA,
+    )
 
-@cached('MEDIA')
+    return image
+
+
 async def get_image_for_download(
     session: AsyncSession,
     image_id: uuid.UUID,
-) -> ImageCacheSchema:
-    """Получение изображения для скачивания с валидацией и кэшированием."""
+) -> ImageMedia:
+    """Получить изображение по ID с использованием кэша."""
+    cached_data = await cache.get(key_media(image_id))
+
+    if cached_data:
+        # Валидируем и возвращаем через схему
+        schema = ImageMediaSchema(**cached_data)
+        if not schema.active:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail='Изображение не найдено.',
+            )
+        return schema
+
     image = await get_image_by_id(session, image_id)
+
     if not image or not image.active:
         logger.warning(
             'Изображение %s не найдено или неактивно',
@@ -66,4 +87,11 @@ async def get_image_for_download(
             detail='Изображение не найдено.',
         )
 
-    return ImageCacheSchema.model_validate(image)
+    schema = ImageMediaSchema.model_validate(image)
+    await cache.set(
+        key_media(image_id),
+        schema.model_dump(mode='json'),
+        ttl=settings.cache.TTL_MEDIA,
+    )
+
+    return image
