@@ -1,8 +1,8 @@
 """initial
 
-Revision ID: 2f2824be38bc
+Revision ID: 4b0dd704a55c
 Revises:
-Create Date: 2025-12-23 12:43:53.080607
+Create Date: 2025-12-31 14:27:35.379916
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '2f2824be38bc'
+revision: str = '4b0dd704a55c'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -133,6 +133,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_slot_active'), 'slot', ['active'], unique=False)
+    op.create_index('ux_sliot_cafe_start_end', 'slot', ['cafe_id', 'start_time', 'end_time'], unique=True)
     op.create_table('table',
     sa.Column('cafe_id', sa.UUID(), nullable=False),
     sa.Column('count_place', sa.Integer(), nullable=False),
@@ -177,6 +178,7 @@ def downgrade() -> None:
     op.drop_table('booking_table_slot')
     op.drop_index(op.f('ix_table_active'), table_name='table')
     op.drop_table('table')
+    op.drop_index('ux_sliot_cafe_start_end', table_name='slot')
     op.drop_index(op.f('ix_slot_active'), table_name='slot')
     op.drop_table('slot')
     op.drop_table('dishes_cafes')
