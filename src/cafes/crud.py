@@ -64,20 +64,13 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
         cafe_db = CafeCreateDB(**payload)
 
         cafe = await super().create(session, obj_in=cafe_db, commit=False)
-        await session.flush()
 
         if managers_ids:
             await sync_cafe_managers(session, cafe, managers_ids)
 
         await session.commit()
 
-        cafe_full = await self._get_with_managers_by_id(session, cafe.id)
-
-        if cafe_full is None:
-            raise RuntimeError(
-                'Не удалось получить созданное кафе после commit',
-            )
-        return cafe_full
+        return await self._get_with_managers_by_id(session, cafe.id)
 
     async def update_cafe(
         self,
@@ -90,9 +83,6 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
 
         managers_ids = payload.pop('managers_id', None)
 
-        if 'phone' in payload and payload['phone'] is not None:
-            payload['phone'] = str(payload['phone'])
-
         cafe = await super().update(
             session,
             db_obj=cafe,
@@ -104,10 +94,7 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
             await sync_cafe_managers(session, cafe, managers_ids)
 
         await session.commit()
-        cafe_full = await self._get_with_managers_by_id(session, cafe.id)
-        if cafe_full is None:
-            raise RuntimeError('Не удалось получить кафе после обновления')
-        return cafe_full
+        return await self._get_with_managers_by_id(session, cafe.id)
 
     async def get_list_cafe(
         self,

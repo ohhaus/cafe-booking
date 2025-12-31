@@ -181,12 +181,80 @@ def login_responses() -> Responses:
     """Получить пресет `responses` для эндпоинтов аутентификации.
 
     Включает ошибки, которые могут возникать при попытке логина:
-    - 403 (доступ запрещён),
     - 422 (ошибка валидации данных).
     """
     return make_responses(
+        errors=(HTTPStatus.UNPROCESSABLE_ENTITY,),
+    )
+
+
+def user_list_responses() -> Responses:
+    """Пресет `responses` для эндпоинта получения списка пользователей.
+
+    Включает:
+    - 200 OK,
+    - 401 Unauthorized (неавторизован),
+    - 403 Forbidden (нет прав на просмотр списка пользователей).
+    """
+    return make_responses(
         errors=(
+            HTTPStatus.UNAUTHORIZED,
             HTTPStatus.FORBIDDEN,
+        ),
+    )
+
+
+def user_create_response(model: Type[BaseModel]) -> Responses:
+    """Пресет `responses` для регистрации нового пользователя.
+
+    Включает:
+    - 201 Created с указанной моделью ответа,
+    - 400 Bad Request (ошибка в параметрах запроса/бизнес-правилах),
+    - 422 Unprocessable Entity (валидация тела запроса).
+    """
+    return make_responses(
+        ok=False,
+        created_model=model,
+        errors=(
+            HTTPStatus.BAD_REQUEST,
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+        ),
+    )
+
+
+def user_retrieve_responses() -> Responses:
+    """Пресет `responses` для получения пользователя по ID.
+
+    Включает:
+    - 200 OK,
+    - 401 Unauthorized,
+    - 403 Forbidden,
+    - 404 Not Found,
+    - 422 Unprocessable Entity (валидация path-параметра).
+    """
+    return make_responses(
+        errors=(
+            HTTPStatus.UNAUTHORIZED,
+            HTTPStatus.FORBIDDEN,
+            HTTPStatus.NOT_FOUND,
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+        ),
+    )
+
+
+def user_me_patch_responses() -> Responses:
+    """Пресет `responses` для обновления текущего пользователя.
+
+    Включает:
+    - 200 OK,
+    - 400 Bad Request,
+    - 401 Unauthorized,
+    - 422 Unprocessable Entity.
+    """
+    return make_responses(
+        errors=(
+            HTTPStatus.BAD_REQUEST,
+            HTTPStatus.UNAUTHORIZED,
             HTTPStatus.UNPROCESSABLE_ENTITY,
         ),
     )
