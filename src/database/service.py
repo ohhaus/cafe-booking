@@ -57,9 +57,9 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         return result.scalars().first()
 
     def _build_options(
-            self,
-            relationships: Sequence[str] | None,
-            ) -> list:
+        self,
+        relationships: Sequence[str] | None,
+    ) -> list:
         """Строит список опций для подгрузки связей.
 
         Args:
@@ -76,8 +76,8 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             attr = getattr(self.model, rel_name, None)
             if attr is None:
                 raise ValueError(
-                    f"Relationship {rel_name} not found"
-                    f" on model {self.model.__name__}",
+                    f'Relationship {rel_name} not found'
+                    f' on model {self.model.__name__}',
                 )
             opts.append(selectinload(attr))
         return opts
@@ -146,12 +146,15 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             Созданный объект модели
 
         """
-        # Pydantic v2 compatibility
-        obj_in_data = (
-            obj_in.model_dump()
-            if hasattr(obj_in, 'model_dump')
-            else obj_in.dict()
-        )
+        if isinstance(obj_in, dict):
+            obj_in_data = obj_in
+        else:
+            # Pydantic v2 compatibility
+            obj_in_data = (
+                obj_in.model_dump()
+                if hasattr(obj_in, 'model_dump')
+                else obj_in.dict()
+            )
 
         db_obj = self.model(**obj_in_data)
         session.add(db_obj)
@@ -264,6 +267,11 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         **filters: Any,
     ) -> int:
         """Подсчитывает количество записей по фильтрам.
+
+        Поддерживает:
+        - Простые сравнения: field=value
+        - Списки: field=[val1, val2] → IN (val1, val2)
+        - None: field=None → IS NULL
 
         Args:
             session: Асинхронная сессия БД

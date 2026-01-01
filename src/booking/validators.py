@@ -1,16 +1,32 @@
+from dataclasses import dataclass
 from datetime import date
 import logging
-from typing import List, Optional, Set, Tuple
+from typing import List, Optional, Tuple
 from uuid import UUID
 
-from fastapi import HTTPException
-from starlette import status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.booking.constants import BookingStatus
-from src.booking.crud import BookingCRUD
+from src.booking.crud import booking_crud
 from src.booking.models import Booking
 from src.booking.schemas import BookingCreate, BookingUpdate
-from src.booking.services import create_or_update_booking
+from src.booking.services import (
+    cancel_or_restore_booking_service,
+    create_or_update_booking_service,
+)
+from src.cafes.crud import cafe_crud
+from src.common.exceptions import (
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+    ValidationErrorException,
+)
+from src.slots.crud import slot_crud
+from src.slots.models import Slot
+from src.tables.crud import table_crud
+from src.tables.models import Table
+from src.users.models import User
 
 
 logger = logging.getLogger('app')
@@ -18,18 +34,147 @@ logger = logging.getLogger('app')
 Pair = Tuple[UUID, UUID]
 
 
-async def validate_cafe_exists(crud: BookingCRUD, cafe_id: UUID) -> None:
-    """Проверяет, что кафе существует и активно."""
-    cafe = await crud.get_cafe(cafe_id)
-    if not cafe:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail='Кафе не найдено',
+@dataclass(frozen=True)
+class EffectivePatch:
+    """Контейнер для вычисленных эффективных значений при обновлении брони."""
+
+    cafe_id: UUID
+    booking_date: date
+    guest_number: int
+    replace_tables_slots: bool
+    guest_number_changed: bool
+    date_changed: bool
+    current_active_pairs: List[Pair]
+    incoming_pairs: Optional[List[Pair]]
+    effective_pairs: List[Pair]
+    pairs_to_check_taken: List[Pair]
+
+
+async def _get_booking_with_access_check(
+    session: AsyncSession,
+    *,
+    booking_id: UUID,
+    current_user: User,
+) -> Booking:
+    current_booking = await booking_crud.get(id=booking_id, session=session)
+    if not current_booking:
+        raise NotFoundException('Бронирование не найдено.')
+
+    is_staff = current_user.is_staff()
+    if not is_staff and current_booking.user_id != current_user.id:
+        raise ForbiddenException(
+            'Недостаточно прав для изменения бронирования.',
         )
+
+    return current_booking
+
+
+async def _maybe_cancel_or_restore(
+    session: AsyncSession,
+    *,
+    current_booking: Booking,
+    patch_data: BookingUpdate,
+) -> Optional[Booking]:
+    if patch_data.status is None:
+        return None
+
+    new_status = patch_data.status
+    old_status = current_booking.status
+
+    if new_status == BookingStatus.CANCELED or (
+        new_status != BookingStatus.CANCELED
+        and old_status == BookingStatus.CANCELED
+    ):
+        return await cancel_or_restore_booking_service(
+            session=session,
+            booking=current_booking,
+            incoming_data=patch_data,
+        )
+
+    return None
+
+
+def _collect_current_active_pairs(current_booking: Booking) -> List[Pair]:
+    return [
+        (bts.table_id, bts.slot_id)
+        for bts in current_booking.booking_table_slots
+        if getattr(bts, 'is_active', True)
+    ]
+
+
+def _collect_incoming_pairs(patch_data: BookingUpdate) -> Optional[List[Pair]]:
+    if patch_data.tables_slots is None:
+        return None
+    return [(ts.table_id, ts.slot_id) for ts in patch_data.tables_slots]
+
+
+def _compute_effective_patch(
+    *,
+    current_booking: Booking,
+    patch_data: BookingUpdate,
+) -> EffectivePatch:
+    effective_cafe_id: UUID = (
+        patch_data.cafe_id
+        if patch_data.cafe_id is not None
+        else current_booking.cafe_id
+    )
+    effective_date: date = (
+        patch_data.booking_date
+        if patch_data.booking_date is not None
+        else current_booking.booking_date
+    )
+    effective_guest_number: int = (
+        patch_data.guest_number
+        if patch_data.guest_number is not None
+        else current_booking.guest_number
+    )
+
+    replace_tables_slots = patch_data.tables_slots is not None
+    guest_number_changed = patch_data.guest_number is not None
+    current_active_pairs = _collect_current_active_pairs(current_booking)
+    incoming_pairs = _collect_incoming_pairs(patch_data)
+
+    effective_pairs: List[Pair] = (
+        incoming_pairs if incoming_pairs is not None else current_active_pairs
+    )
+
+    date_changed = effective_date != current_booking.booking_date
+
+    pairs_to_check_taken: List[Pair] = []
+    if date_changed:
+        pairs_to_check_taken = effective_pairs
+    elif replace_tables_slots and incoming_pairs is not None:
+        pairs_to_check_taken = list(
+            set(incoming_pairs) - set(current_active_pairs),
+        )
+
+    return EffectivePatch(
+        cafe_id=effective_cafe_id,
+        booking_date=effective_date,
+        guest_number=effective_guest_number,
+        replace_tables_slots=replace_tables_slots,
+        guest_number_changed=guest_number_changed,
+        date_changed=date_changed,
+        current_active_pairs=current_active_pairs,
+        incoming_pairs=incoming_pairs,
+        effective_pairs=effective_pairs,
+        pairs_to_check_taken=pairs_to_check_taken,
+    )
+
+
+async def validate_cafe_exists(session: AsyncSession, cafe_id: UUID) -> None:
+    """Проверяет, что кафе существует и активно."""
+    cafe = await cafe_crud.exists(
+        session,
+        id=cafe_id,
+        active=True,
+    )
+    if not cafe:
+        raise ValidationErrorException('Кафе не найдено или не активно.')
 
 
 async def validate_tables_slots_exist_and_belong_to_cafe(
-    crud: BookingCRUD,
+    session: AsyncSession,
     *,
     cafe_id: UUID,
     tables_slots: List[Pair],
@@ -39,68 +184,91 @@ async def validate_tables_slots_exist_and_belong_to_cafe(
 
     Возвращает table_ids (с повторами, как в исходных парах).
     """
-    await validate_cafe_exists(crud, cafe_id)
-
     pairs = list(tables_slots or [])
     if require_non_empty and not pairs:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail='Необходимо указать хотя бы один стол и слот.',
+        raise ValidationErrorException(
+            'Необходимо указать хотя бы один стол и слот.',
         )
 
     # Нечего проверять дальше
     if not pairs:
         return []
 
-    table_ids = [t for (t, _) in pairs]
-    slot_ids = [s for (_, s) in pairs]
-
-    unique_table_ids: Set[UUID] = set(table_ids)
-    tables = await crud.get_tables(list(unique_table_ids), cafe_id)
-    if len(tables) != len(unique_table_ids):
-        missing = unique_table_ids - {t.id for t in tables}
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f'Столы с ID: {missing} не найдены или не активны.',
+    unique_table_ids, unique_slot_ids = map(lambda x: set(x), zip(*pairs))
+    # Проверка столов списком через count()
+    count = await table_crud.count(
+        session,
+        id=list(unique_table_ids),
+        cafe_id=cafe_id,
+        active=True,
+    )
+    if count != len(unique_table_ids):
+        # Найдём, какие именно столы отсутствуют
+        existing_tables = await table_crud.get_multi(
+            session=session,
+            filters=[
+                Table.id.in_(unique_table_ids),
+                Table.cafe_id == cafe_id,
+                Table.active.is_(True),
+            ],
+        )
+        existing_ids = {table.id for table in existing_tables}
+        missing_ids = unique_table_ids - existing_ids
+        raise ValidationErrorException(
+            'Следующие столы не найдены, не активны или не принадлежат кафе: '
+            f'{missing_ids}',
+        )
+    # Проверка слотов списком через count()
+    count = await slot_crud.count(
+        session,
+        id=list(unique_slot_ids),
+        cafe_id=cafe_id,
+        active=True,
+    )
+    if count != len(unique_slot_ids):
+        # Найдём, какие именно слоты отсутствуют
+        existing_slots = await slot_crud.get_multi(
+            session=session,
+            filters=[
+                Slot.id.in_(unique_slot_ids),
+                Slot.cafe_id == cafe_id,
+                Slot.active.is_(True),
+            ],
+        )
+        existing_ids = {slot.id for slot in existing_slots}
+        missing_ids = unique_slot_ids - existing_ids
+        raise ValidationErrorException(
+            'Следующие слоты не найдены, не активны или не принадлежат кафе: '
+            f'{missing_ids}',
         )
 
-    unique_slot_ids: Set[UUID] = set(slot_ids)
-    slots = await crud.get_slots(list(unique_slot_ids), cafe_id)
-    if len(slots) != len(unique_slot_ids):
-        missing = unique_slot_ids - {s.id for s in slots}
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f'Слоты с ID: {missing} не найдены или не активны.',
-        )
-
-    return table_ids
+    return [table_id for (table_id, _) in pairs]
 
 
 async def validate_capacity(
-    crud: BookingCRUD,
+    session: AsyncSession,
     *,
     table_ids: List[UUID],
     guest_number: int,
 ) -> None:
     """Проверяет, что суммарная вместимость столов >= количества гостей."""
-    # если столов нет — либо это "не о чем говорить", либо бизнес-ошибка
-    # (обычно сюда не зовём с пустым списком)
     if not table_ids:
         return
 
-    ok = await crud.check_capacity(list(table_ids), guest_number)
+    ok = await booking_crud.check_capacity(
+        session,
+        list(table_ids),
+        guest_number,
+    )
     if not ok:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                f'Количество гостей {guest_number} превышает '
-                f'вместимость столов'
-            ),
+        raise ValidationErrorException(
+            f'Количество гостей ({guest_number}) превышает вместимость '
+            'столов.',
         )
 
 
 async def validate_table_slot_is_not_booked(
-    crud: BookingCRUD,
+    session: AsyncSession,
     *,
     tables_slots: List[Pair],
     booking_date: date,
@@ -112,220 +280,164 @@ async def validate_table_slot_is_not_booked(
         return
 
     for table_id, slot_id in pairs:
-        taken = await crud.is_table_slot_taken(
+        taken = await booking_crud.is_table_slot_taken(
+            session=session,
             table_id=table_id,
             slot_id=slot_id,
             booking_date=booking_date,
             exclude_booking_id=exclude_booking_id,
         )
         if taken:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f'Стол {table_id} в слоте {slot_id} уже '
-                    f'забронирован на {booking_date}'
-                ),
+            raise ConflictException(
+                f'Стол {table_id} в слоте {slot_id} уже забронирован на '
+                f'{booking_date}.',
             )
 
 
 async def validate_and_create_booking(
-    crud: BookingCRUD,
+    session: AsyncSession,
     booking_data: BookingCreate,
     current_user_id: UUID,
-) -> Booking:
+) -> Booking | None:
     """Полная валидация и создание бронирования.
 
     Проверяет бизнес-логику, конфликты и вместимость, затем создает бронь.
     Возвращает созданный объект Booking.
     """
     # 1) Проверяем кафе
-    await validate_cafe_exists(crud, booking_data.cafe_id)
+    await validate_cafe_exists(session, booking_data.cafe_id)
 
     # 2) Проверяем столы и слоты
+    tables_slots = [
+        (ts.table_id, ts.slot_id) for ts in booking_data.tables_slots
+    ]
     table_ids = await validate_tables_slots_exist_and_belong_to_cafe(
-        crud,
+        session=session,
         cafe_id=booking_data.cafe_id,
-        tables_slots=[
-            (ts.table_id, ts.slot_id) for ts in booking_data.tables_slots
-        ],
+        tables_slots=tables_slots,
         require_non_empty=True,
     )
 
     # 3) Проверяем вместимость
     await validate_capacity(
-        crud,
+        session=session,
         table_ids=table_ids,
         guest_number=booking_data.guest_number,
     )
 
     # 4) Проверяем занятость
     await validate_table_slot_is_not_booked(
-        crud,
-        tables_slots=[
-            (ts.table_id, ts.slot_id) for ts in booking_data.tables_slots
-        ],
+        session=session,
+        tables_slots=tables_slots,
         booking_date=booking_data.booking_date,
         exclude_booking_id=None,
     )
 
     # 5) Создание брони
-    pairs = [(ts.table_id, ts.slot_id) for ts in booking_data.tables_slots]
-    return await create_or_update_booking(
-        crud=crud,
+    return await create_or_update_booking_service(
+        session=session,
         current_user_id=current_user_id,
         booking=None,
         data=booking_data,
-        tables_slots=pairs,
+        tables_slots=tables_slots,
     )
 
 
 def validate_patch_cafe_change_requires_tables_slots(
     *,
-    incoming_data: dict,
+    incoming_data: BookingUpdate,
     current_cafe_id: UUID,
 ) -> None:
     """Запрещает изменение cafe_id без одновременного указания tables_slots."""
-    cafe_in_payload = 'cafe_id' in incoming_data
-    tables_in_payload = 'tables_slots' in incoming_data
-
-    if cafe_in_payload and incoming_data.get('cafe_id') != current_cafe_id:
-        if not tables_in_payload:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=(
-                    'Изменение cafe_id возможно только при явной передаче '
-                    '"tables_slots" (списка столов и слотов) для нового кафе.'
-                ),
+    if (
+        incoming_data.cafe_id is not None
+        and incoming_data.cafe_id != current_cafe_id
+    ):
+        if incoming_data.tables_slots is None:
+            raise ValidationErrorException(
+                'Изменение cafe_id возможно только при явной передаче '
+                '"tables_slots" (списка столов и слотов) для нового кафе.',
             )
 
 
 async def validate_and_update_booking(
-    crud: BookingCRUD,
+    session: AsyncSession,
     booking_id: UUID,
-    incoming_data: dict,
-    current_user_id: UUID,
+    current_user: User,
     patch_data: BookingUpdate,
-    is_staff: bool,
 ) -> Booking:
     """Полная валидация и обновление бронирования.
 
     Проверяет бизнес-логику, конфликты и вместимость, затем обновляет бронь.
     Возвращает обновлённый объект Booking.
     """
-    # 1) Получение брони с проверкой доступа
-    current_booking = await crud.get_booking_by_id(
-        booking_id,
-        current_user_id=current_user_id,
-        is_staff=is_staff,
-    )
-    if not current_booking:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail='Бронирование не найдено.',
-        )
+    # Проверяем, есть ли установленные поля в модели
+    if not patch_data.model_fields_set:
+        raise BadRequestException('Пустой запрос: нет полей для обновления.')
 
-    # 2) Обработка отмены брони — завершаем обработку
-    if (
-        'status' in incoming_data
-        and incoming_data['status'] == BookingStatus.CANCELED
-    ):
-        current_booking.cancel_booking()
-        if 'note' in incoming_data:
-            current_booking.note = incoming_data['note']
-        return current_booking
+    # 1) Получение брони с проверкой доступа
+    current_booking = await _get_booking_with_access_check(
+        session,
+        booking_id=booking_id,
+        current_user=current_user,
+    )
+
+    # 2) Обработка отмены или восстановления брони —> завершаем обработку
+    canceled_restored = await _maybe_cancel_or_restore(
+        session,
+        current_booking=current_booking,
+        patch_data=patch_data,
+    )
+    if canceled_restored is not None:
+        return canceled_restored
 
     # 3) запрет смены cafe без tables_slots
     validate_patch_cafe_change_requires_tables_slots(
-        incoming_data=incoming_data,
+        incoming_data=patch_data,
         current_cafe_id=current_booking.cafe_id,
     )
 
-    # 4) effective значения
-    effective_cafe_id: UUID = incoming_data.get(
-        'cafe_id',
-        current_booking.cafe_id,
+    # 4) собираем и фиксируем effective значения
+    eff = _compute_effective_patch(
+        current_booking=current_booking,
+        patch_data=patch_data,
     )
-    effective_date: date = incoming_data.get(
-        'booking_date',
-        current_booking.booking_date,
-    )
-    effective_guest_number: int = incoming_data.get(
-        'guest_number',
-        current_booking.guest_number,
-    )
-
-    replace_tables_slots = 'tables_slots' in incoming_data
-    date_changed = effective_date != current_booking.booking_date
-    guest_number_changed = 'guest_number' in incoming_data
-
-    # 5) current_pairs (активные связи из брони)
-    current_pairs: List[Pair] = [
-        (bts.table_id, bts.slot_id)
-        for bts in current_booking.booking_table_slots
-        if getattr(bts, 'is_active', True)  # TODO: нужно ли?
-    ]
-
-    # 6) incoming_pairs (если пришли)
-    incoming_pairs: Optional[List[Pair]] = None
-    if replace_tables_slots:
-        incoming_pairs = [
-            (ts['table_id'], ts['slot_id'])
-            # if isinstance(ts, dict)  # TODO: нужно ли?
-            # else (ts.table_id, ts.slot_id)
-            for ts in incoming_data['tables_slots']
-        ]
-
-    # 7) effective_pairs после PATCH
-    effective_pairs: List[Pair] = (
-        incoming_pairs if (incoming_pairs is not None) else current_pairs
-    )
-
-    # 8) какие пары проверять на "занято"
-    pairs_to_check_taken: List[Pair] = []
-    if date_changed:
-        # дата меняется -> проверяем все итоговые пары на новой дате
-        pairs_to_check_taken = effective_pairs
-    elif replace_tables_slots and incoming_pairs is not None:
-        # tables_slots меняются, дата прежняя -> проверяем добавленные пары
-        pairs_to_check_taken = list(set(incoming_pairs) - set(current_pairs))
-
-    # 9) проверка доступность столов/слотов, только если есть что проверять
-    if pairs_to_check_taken:
-        _ = await validate_tables_slots_exist_and_belong_to_cafe(
-            crud,
-            cafe_id=effective_cafe_id,
-            tables_slots=pairs_to_check_taken,
+    # 5) проверка доступности столов
+    if eff.pairs_to_check_taken:
+        await validate_tables_slots_exist_and_belong_to_cafe(
+            session=session,
+            cafe_id=eff.cafe_id,
+            tables_slots=eff.pairs_to_check_taken,
             require_non_empty=True,
         )
         await validate_table_slot_is_not_booked(
-            crud,
-            tables_slots=pairs_to_check_taken,
-            booking_date=effective_date,
+            session=session,
+            tables_slots=eff.pairs_to_check_taken,
+            booking_date=eff.booking_date,
             exclude_booking_id=current_booking.id,
         )
 
-    # 10) вместимость проверяем когда меняются гости или меняются столы
-    need_capacity_check = guest_number_changed or replace_tables_slots
+    # 6) проверка вместимости
+    need_capacity_check = eff.guest_number_changed or eff.replace_tables_slots
 
-    # 11) проверка вместимости, только если нужно и есть пары
-    if need_capacity_check and effective_pairs:
+    if need_capacity_check and eff.effective_pairs:
         table_ids = await validate_tables_slots_exist_and_belong_to_cafe(
-            crud,
-            cafe_id=effective_cafe_id,
-            tables_slots=effective_pairs,
+            session=session,
+            cafe_id=eff.cafe_id,
+            tables_slots=eff.effective_pairs,
             require_non_empty=False,
         )
         await validate_capacity(
-            crud,
+            session=session,
             table_ids=table_ids,
-            guest_number=effective_guest_number,
+            guest_number=eff.guest_number,
         )
 
-    # 12) Применение изменений
-    return await create_or_update_booking(
-        crud=crud,
-        current_user_id=current_user_id,
+    # 7) Применение изменений
+    return await create_or_update_booking_service(
+        session=session,
+        current_user_id=current_user.id,
         booking=current_booking,
         data=patch_data,
-        tables_slots=incoming_pairs,
+        tables_slots=eff.incoming_pairs,
     )

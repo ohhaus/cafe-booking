@@ -137,7 +137,7 @@ class BaseUser(BaseModel):
     phone: PhoneStr | None = Field(None, validate_default=False)
     tg_id: TagIdStr | None = Field(None, validate_default=False)
 
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='forbid', from_attributes=True)
 
 
 class UserRead(BaseRead, BaseUser, RoleMixin):
