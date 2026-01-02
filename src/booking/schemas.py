@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from typing import List, Optional, Self, TypeVar
 from uuid import UUID
 
@@ -17,6 +17,7 @@ from src.booking.constants import (
     MAX_GUEST_NUMBER,
 )
 from src.cafes.schemas import CafeShortInfo
+from src.common import BaseRead
 from src.slots.schemas import TimeSlotShortInfo
 from src.tables.schemas import TableShortInfo
 from src.users.schemas import UserReadView
@@ -193,10 +194,9 @@ class BookingUpdate(BaseModel):
         return self
 
 
-class BookingInfo(BaseModel):
+class BookingInfo(BaseRead):
     """Полная информация о бронировании."""
 
-    id: UUID
     user: UserReadView
     cafe: CafeShortInfo
     tables_slots: List[TablesSlotsInfo] = Field(
@@ -206,9 +206,6 @@ class BookingInfo(BaseModel):
     note: str
     status: BookingStatus
     booking_date: date
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -216,11 +213,3 @@ class BookingInfo(BaseModel):
     def serialize_booking_date(self, value: date) -> str:
         """Сериализовать дату бронирования в ISO-формат (YYYY-MM-DD)."""
         return value.isoformat()
-
-    @field_serializer('created_at', 'updated_at')
-    def serialize_datetime(self, value: datetime) -> str:
-        """Сериализовать дату и время из UTC в ISO-формат с Z (UTC)."""
-        if value is None:
-            return ''
-        value = value.astimezone(timezone.utc)
-        return value.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
