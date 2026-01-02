@@ -45,7 +45,7 @@ class TablesSlotsInfo(BaseModel):
 
 
 def _validate_booking_date_in_range(booking_date: date) -> date:
-    """Единая проверка диапазона даты брони (используется в CREATE и PATCH)."""
+    """Единая проверка даты брони (используется в CREATE и PATCH)."""
     today = date.today()
     max_date = today + timedelta(days=MAX_BOOKING_DATE)
     if not (today <= booking_date <= max_date):
