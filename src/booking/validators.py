@@ -8,13 +8,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.booking.constants import BookingStatus
 from src.booking.crud import booking_crud
+from src.booking.lookup import (
+    cafe_is_active,
+    slots_existing_active_in_cafe,
+    tables_existing_active_in_cafe,
+)
 from src.booking.models import Booking
 from src.booking.schemas import BookingCreate, BookingUpdate
 from src.booking.services import (
     cancel_or_restore_booking_service,
     create_or_update_booking_service,
 )
-from src.cafes.crud import cafe_crud
+from src.cache.client import RedisCache
 from src.common.exceptions import (
     BadRequestException,
     ConflictException,
@@ -22,10 +27,6 @@ from src.common.exceptions import (
     NotFoundException,
     ValidationErrorException,
 )
-from src.slots.crud import slot_crud
-from src.slots.models import Slot
-from src.tables.crud import table_crud
-from src.tables.models import Table
 from src.users.models import User
 
 
@@ -162,12 +163,16 @@ def _compute_effective_patch(
     )
 
 
-async def validate_cafe_exists(session: AsyncSession, cafe_id: UUID) -> None:
-    """Проверяет, что кафе существует и активно."""
-    cafe = await cafe_crud.exists(
+async def validate_cafe_exists(
+    session: AsyncSession,
+    cafe_id: UUID,
+    cache_client: RedisCache,
+) -> None:
+    """Проверяет, что кафе существует и активно, используя кэш."""
+    cafe = await cafe_is_active(
         session,
-        id=cafe_id,
-        active=True,
+        cache_client,
+        cafe_id,
     )
     if not cafe:
         raise ValidationErrorException('Кафе не найдено или не активно.')
@@ -179,6 +184,7 @@ async def validate_tables_slots_exist_and_belong_to_cafe(
     cafe_id: UUID,
     tables_slots: List[Pair],
     require_non_empty: bool,
+    client_cache: RedisCache,
 ) -> List[UUID]:
     """Валидирует, что столы/слоты существуют, активны и принадлежат кафе.
 
@@ -195,51 +201,33 @@ async def validate_tables_slots_exist_and_belong_to_cafe(
         return []
 
     unique_table_ids, unique_slot_ids = map(lambda x: set(x), zip(*pairs))
-    # Проверка столов списком через count()
-    count = await table_crud.count(
-        session,
-        id=list(unique_table_ids),
+
+    # Проверка столов — передаём список ID
+    existing_table_ids = await tables_existing_active_in_cafe(
+        session=session,
+        client_cache=client_cache,
         cafe_id=cafe_id,
-        active=True,
+        table_ids=unique_table_ids,
     )
-    if count != len(unique_table_ids):
-        # Найдём, какие именно столы отсутствуют
-        existing_tables = await table_crud.get_multi(
-            session=session,
-            filters=[
-                Table.id.in_(unique_table_ids),
-                Table.cafe_id == cafe_id,
-                Table.active.is_(True),
-            ],
-        )
-        existing_ids = {table.id for table in existing_tables}
-        missing_ids = unique_table_ids - existing_ids
+    missing_table_ids = unique_table_ids - existing_table_ids
+    if missing_table_ids:
         raise ValidationErrorException(
             'Следующие столы не найдены, не активны или не принадлежат кафе: '
-            f'{missing_ids}',
+            f'{missing_table_ids}',
         )
-    # Проверка слотов списком через count()
-    count = await slot_crud.count(
-        session,
-        id=list(unique_slot_ids),
+
+    # Проверка слотов — передаём список ID
+    existing_slot_ids = await slots_existing_active_in_cafe(
+        session=session,
+        client_cache=client_cache,
         cafe_id=cafe_id,
-        active=True,
+        slot_ids=unique_slot_ids,
     )
-    if count != len(unique_slot_ids):
-        # Найдём, какие именно слоты отсутствуют
-        existing_slots = await slot_crud.get_multi(
-            session=session,
-            filters=[
-                Slot.id.in_(unique_slot_ids),
-                Slot.cafe_id == cafe_id,
-                Slot.active.is_(True),
-            ],
-        )
-        existing_ids = {slot.id for slot in existing_slots}
-        missing_ids = unique_slot_ids - existing_ids
+    missing_slot_ids = unique_slot_ids - existing_slot_ids
+    if missing_slot_ids:
         raise ValidationErrorException(
             'Следующие слоты не найдены, не активны или не принадлежат кафе: '
-            f'{missing_ids}',
+            f'{missing_slot_ids}',
         )
 
     return [table_id for (table_id, _) in pairs]
@@ -279,25 +267,33 @@ async def validate_table_slot_is_not_booked(
     if not pairs:
         return
 
-    for table_id, slot_id in pairs:
-        taken = await booking_crud.is_table_slot_taken(
-            session=session,
-            table_id=table_id,
-            slot_id=slot_id,
-            booking_date=booking_date,
-            exclude_booking_id=exclude_booking_id,
+    taken_pairs = await booking_crud.get_taken_table_slot_pairs(
+        session=session,
+        pairs=pairs,
+        booking_date=booking_date,
+        exclude_booking_id=exclude_booking_id,
+    )
+
+    if taken_pairs:
+        conflicts = sorted(taken_pairs, key=lambda x: (str(x[0]), str(x[1])))
+
+        # Человекочитаемый список конфликтов
+        conflicts_text = ', '.join(
+            f'(table_id={table_id}, slot_id={slot_id})'
+            for table_id, slot_id in conflicts
         )
-        if taken:
-            raise ConflictException(
-                f'Стол {table_id} в слоте {slot_id} уже забронирован на '
-                f'{booking_date}.',
-            )
+
+        raise ConflictException(
+            'Столы и слоты уже забронированы на дату '
+            f'{booking_date}: {conflicts_text}.',
+        )
 
 
 async def validate_and_create_booking(
     session: AsyncSession,
     booking_data: BookingCreate,
     current_user_id: UUID,
+    client_cache: RedisCache,
 ) -> Booking | None:
     """Полная валидация и создание бронирования.
 
@@ -305,7 +301,7 @@ async def validate_and_create_booking(
     Возвращает созданный объект Booking.
     """
     # 1) Проверяем кафе
-    await validate_cafe_exists(session, booking_data.cafe_id)
+    await validate_cafe_exists(session, booking_data.cafe_id, client_cache)
 
     # 2) Проверяем столы и слоты
     tables_slots = [
@@ -316,6 +312,7 @@ async def validate_and_create_booking(
         cafe_id=booking_data.cafe_id,
         tables_slots=tables_slots,
         require_non_empty=True,
+        client_cache=client_cache,
     )
 
     # 3) Проверяем вместимость
@@ -365,6 +362,7 @@ async def validate_and_update_booking(
     booking_id: UUID,
     current_user: User,
     patch_data: BookingUpdate,
+    client_cache: RedisCache,
 ) -> Booking:
     """Полная валидация и обновление бронирования.
 
@@ -409,6 +407,7 @@ async def validate_and_update_booking(
             cafe_id=eff.cafe_id,
             tables_slots=eff.pairs_to_check_taken,
             require_non_empty=True,
+            client_cache=client_cache,
         )
         await validate_table_slot_is_not_booked(
             session=session,
@@ -426,6 +425,7 @@ async def validate_and_update_booking(
             cafe_id=eff.cafe_id,
             tables_slots=eff.effective_pairs,
             require_non_empty=False,
+            client_cache=client_cache,
         )
         await validate_capacity(
             session=session,
