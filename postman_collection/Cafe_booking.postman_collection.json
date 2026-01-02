@@ -1277,7 +1277,7 @@
 			"name": "Booking",
 			"item": [
 				{
-					"name": "Bad requests",
+					"name": "Bad create requests",
 					"item": [
 						{
 							"name": "Test 3: create_booking// Normaly",
@@ -1779,6 +1779,10 @@
 							"response": []
 						}
 					]
+				},
+				{
+					"name": "Bad update requests",
+					"item": []
 				},
 				{
 					"name": "Test 1: create_booking // Normal",
