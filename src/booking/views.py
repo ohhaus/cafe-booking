@@ -7,13 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.booking.schemas import BookingCreate, BookingInfo, BookingUpdate
 from src.booking.services import (
+    BookingValidationService,
     get_booking_by_id_service,
     get_bookings_service,
 )
-from src.booking.validators import (
-    validate_and_create_booking,
-    validate_and_update_booking,
-)
+from src.cache.client import cache
 from src.common.responses import (
     create_responses,
     list_responses,
@@ -46,9 +44,12 @@ async def create_booking(
     session: AsyncSession = Depends(get_async_session),
 ) -> BookingInfo | None:
     """Создаёт новое бронирование."""
-    booking = await validate_and_create_booking(
+    validation_service = BookingValidationService(
         session=session,
-        booking_data=booking_data,
+        client_cache=cache,
+    )
+    booking = await validation_service.validate_and_create_booking(
+        data=booking_data,
         current_user_id=current_user.id,
     )
 
@@ -158,8 +159,11 @@ async def patch_booking(
     session: AsyncSession = Depends(get_async_session),
 ) -> BookingInfo | None:
     """Частично обновляет бронирование по его ID."""
-    updated_booking = await validate_and_update_booking(
+    validation_service = BookingValidationService(
         session=session,
+        client_cache=cache,
+    )
+    updated_booking = await validation_service.validate_and_update_booking(
         booking_id=booking_id,
         current_user=current_user,
         patch_data=patch_data,

@@ -37,6 +37,11 @@ def key_cafe(cafe_id: UUID) -> str:
     return _build_key(PREFIX_CAFE, cafe_id)
 
 
+def key_cafe_active(cafe_id: UUID) -> str:
+    """Возвращает ключ кэша для статуса активности кафе."""
+    return _build_key(PREFIX_CAFE, cafe_id, 'active')
+
+
 def pattern_cafe(cafe_id: UUID) -> str:
     """Возвращает шаблон ключей для одного кафе."""
     return f'{PREFIX_CAFE}:{cafe_id}*'
@@ -55,6 +60,16 @@ def key_cafe_tables(cafe_id: UUID) -> str:
 def key_cafe_table(cafe_id: UUID, table_id: UUID) -> str:
     """Возвращает ключ кэша для конкретного стола кафе."""
     return _build_key(PREFIX_CAFE, cafe_id, 'table', table_id)
+
+
+def key_cafe_table_active(cafe_id: UUID, table_id: UUID) -> str:
+    """Возвращает ключ кэша для статуса активности стола в кафе."""
+    return _build_key(PREFIX_CAFE, cafe_id, 'table', table_id, 'active')
+
+
+def key_cafe_slot_active(cafe_id: UUID, slot_id: UUID) -> str:
+    """Возвращает ключ кэша для статуса активности слота в кафе."""
+    return _build_key(PREFIX_CAFE, cafe_id, 'slot', slot_id, 'active')
 
 
 def pattern_cafe_tables(cafe_id: UUID) -> str:

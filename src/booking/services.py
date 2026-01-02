@@ -14,6 +14,7 @@ from src.booking.constants import BookingStatus
 from src.booking.crud import booking_crud, booking_table_slot_crud
 from src.booking.models import Booking
 from src.booking.schemas import BookingCreate, BookingUpdate
+from src.cache.client import RedisCache
 from src.common.exceptions import ForbiddenException, NotFoundException
 from src.users.models import User
 
@@ -22,6 +23,57 @@ logger = logging.getLogger('app')
 
 Pair = Tuple[UUID, UUID]
 BookingIn = Union[BookingCreate, BookingUpdate]
+
+
+class BookingValidationService:
+    """Сервис валидации бронирований с внедрением зависимостей."""
+
+    def __init__(
+        self,
+        session: AsyncSession,
+        client_cache: RedisCache,
+    ) -> None:
+        """Инициализирует сервис с сессией БД и клиентом кэша.
+
+        Args:
+            session: Асинхронная сессия базы данных.
+            client_cache: Клиент Redis для кэширования.
+
+        """
+        self.session = session
+        self.client_cache = client_cache
+
+    async def validate_and_create_booking(
+        self,
+        data: BookingCreate,
+        current_user_id: UUID,
+    ) -> Booking:
+        """Выполняет валидацию и создание новой брони."""
+        from src.booking.validators import validate_and_create_booking
+
+        return await validate_and_create_booking(
+            session=self.session,
+            booking_data=data,
+            current_user_id=current_user_id,
+            client_cache=self.client_cache,
+        )
+
+    async def validate_and_update_booking(
+        self,
+        booking_id: UUID,
+        current_user: User,
+        patch_data: BookingUpdate,
+    ) -> Booking:
+        """Выполняет валидацию и обновление брони с учётом зависимостей."""
+        from src.booking.validators import validate_and_update_booking
+
+        return await validate_and_update_booking(
+            session=self.session,
+            booking_id=booking_id,
+            current_user=current_user,
+            patch_data=patch_data,
+            client_cache=self.client_cache,
+        )
 
 
 def apply_status_is_active(
@@ -165,7 +217,7 @@ async def create_or_update_booking_service(
         logger.error(
             'Создание/обновление бронирования не удалось, rolled back '
             '(is_create=%s, booking_id=%s)',
-            is_create,
+            is_create,  # noqa
             getattr(booking, 'id', None),
             extra={'user_id': str(current_user_id)},
             exc_info=True,
