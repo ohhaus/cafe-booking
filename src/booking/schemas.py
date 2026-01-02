@@ -45,13 +45,13 @@ class TablesSlotsInfo(BaseModel):
 
 
 def _validate_booking_date_in_range(booking_date: date) -> date:
-    """Единая проверка диапазона даты брони (используется в CREATE и PATCH)."""
+    """Единая проверка даты брони (используется в CREATE и PATCH)."""
     today = date.today()
     max_date = today + timedelta(days=MAX_BOOKING_DATE)
     if not (today <= booking_date <= max_date):
         raise ValueError(
-            'Дата бронирования должна быть в диапазоне от сегодня '
-            f'до {MAX_BOOKING_DATE} дней вперёд.',
+            'Дата бронирования должна быть в диапазоне от сегодня до '
+            f'{MAX_BOOKING_DATE} дней вперёд.',
         )
     return booking_date
 
@@ -69,6 +69,19 @@ def _prevent_duplicate_pairs_validator(
         )
 
 
+def _validate_guest_number_range(value: Optional[int]) -> Optional[int]:
+    """Проверяет, что guest_number в допустимом диапазоне."""
+    if value is None:
+        return value
+    if value <= 0:
+        raise ValueError('Количество гостей должно быть больше 0.')
+    if value > MAX_GUEST_NUMBER:
+        raise ValueError(
+            f'Количество гостей не может превышать {MAX_GUEST_NUMBER}.',
+        )
+    return value
+
+
 class BookingBase(BaseModel):
     """Базовая схема бронирования, содержащая общие поля."""
 
@@ -78,15 +91,13 @@ class BookingBase(BaseModel):
         description='Должен быть хотя бы один стол и слот.',
     )
     guest_number: int = Field(
-        gt=0,
-        le=MAX_GUEST_NUMBER,
         description='Количество гостей должно быть больше 0 и не превышать '
-        f'максимальное значение {MAX_GUEST_NUMBER}.',
+        f'{MAX_GUEST_NUMBER}.',
     )
     note: Optional[str] = None
     booking_date: date = Field(
-        description='Должна быть в диапазоне от сегодня до MAX_BOOKING_DATE '
-        'дней.',
+        description='Должна быть в диапазоне от сегодня до '
+        f'{MAX_BOOKING_DATE} дней.',
     )
 
     model_config = ConfigDict(extra='forbid')
@@ -97,9 +108,14 @@ class BookingBase(BaseModel):
         """Проверяет, что дата в допустимом диапазоне."""
         return _validate_booking_date_in_range(booking_date)
 
+    @field_validator('guest_number')
+    @classmethod
+    def validate_guest_number(cls, value: int) -> int:
+        """Проверяет, что количество гостей в допустимом диапазоне."""
+        return _validate_guest_number_range(value)
+
     @model_validator(mode='after')
-    def prevent_duplicate_pairs(self: T) -> T:
-        """Запрещает дублирующиеся пары (table_id, slot_id) в tables_slots."""
+    def prevent_duplicate_pairs(self) -> Self:
         """Запрещает дублирующиеся пары (table_id, slot_id) в tables_slots."""
         _prevent_duplicate_pairs_validator(self.tables_slots)
         return self
@@ -136,10 +152,8 @@ class BookingUpdate(BaseModel):
     )
     guest_number: Optional[int] = Field(
         None,
-        gt=0,
-        le=MAX_GUEST_NUMBER,
         description='Количество гостей должно быть больше 0 и не превышать '
-        f'максимальное значение {MAX_GUEST_NUMBER}.',
+        f'{MAX_GUEST_NUMBER}.',
     )
     note: Optional[str] = None
     status: Optional[BookingStatus] = None
@@ -158,6 +172,15 @@ class BookingUpdate(BaseModel):
         if booking_date is None:
             return booking_date
         return _validate_booking_date_in_range(booking_date)
+
+    @field_validator('guest_number')
+    @classmethod
+    def validate_guest_number_in_update(
+        cls,
+        value: Optional[int],
+    ) -> Optional[int]:
+        """Проверяет, что количество гостей в допустимом диапазоне."""
+        return _validate_guest_number_range(value)
 
     @model_validator(mode='after')
     def forbid_nulls(self) -> Self:
@@ -188,8 +211,8 @@ class BookingUpdate(BaseModel):
             raise ValueError(
                 'Нельзя одновременно установить status!=CANCELED и '
                 'is_active=false. '
-                'Либо отмените бронь через status=CANCELED, либо не '
-                'передавайте is_active.',
+                'Либо отмените бронь через status=CANCELED, '
+                'либо не передавайте is_active.',
             )
         return self
 
