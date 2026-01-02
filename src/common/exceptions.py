@@ -1,72 +1,200 @@
-# src/common/exceptions.py
 """Кастомные исключения для проекта."""
+
 from dataclasses import dataclass
 from http import HTTPStatus
+from typing import Optional
 
 
-@dataclass
+@dataclass(eq=False)
 class AppException(Exception):
-    """Базовое исключение приложения."""
+    """Базовое исключение приложения.
 
-    status_code: int
-    code: int
+    Все кастомные исключения наследуются от этого класса.
+    Позволяет единообразно возвращать ошибки в формате:
+    {
+        "code": <internal_code>,
+        "message": <human_readable_message>
+    }
+    с соответствующим HTTP-статусом.
+    """
+
+    status_code: HTTPStatus  # HTTP статус ответа
+    code: Optional[int]  # внутренний/доменный код
     message: str
+
+    def __init__(
+        self,
+        *,
+        status_code: HTTPStatus,
+        message: str,
+        code: Optional[int] = None,
+    ) -> None:
+        """Инициализирует базовое исключение приложения.
+
+        Args:
+            status_code: HTTP статус ответа
+            message: Человекочитаемое сообщение об ошибке
+            code: Внутренний код ошибки (по умолчанию совпадает с status_code)
+
+        """
+        self.status_code = status_code
+        self.code = code
+        self.message = message
+        super().__init__(message)
 
 
 class NotAuthorizedException(AppException):
-    """Ошибка неавторизированного пользователя."""
+    """Исключение: пользователь не авторизован.
+
+    Вызывается при отсутствии или невалидности токена.
+    (HTTP 401 Unauthorized)
+    """
 
     def __init__(
-            self,
-            message: str = 'Неавторизированный пользователь',
+        self,
+        message: str = 'Неавторизированный пользователь',
+        code: Optional[int] = None,
     ) -> None:
-        """Инициализирует ошибку неавторизированного пользователя."""
+        """Инициализирует исключение неавторизованного доступа.
+
+        Args:
+            message: Сообщение об ошибке
+            code: Внутренний код ошибки
+
+        """
         super().__init__(
             status_code=HTTPStatus.UNAUTHORIZED,
-            code=HTTPStatus.UNAUTHORIZED,
-            message=message)
+            message=message,
+            code=code,
+        )
 
 
 class ValidationErrorException(AppException):
-    """Ошибка валидации данных."""
+    """Исключение: ошибка валидации входных данных.
 
-    def __init__(self, message: str = "Ошибка валидации данных") -> None:
-        """Инициализирует ошибку валидации данных."""
+    Возникает при неверном формате или значении параметров запроса.
+    (HTTP 422 Unprocessable Entity)
+    """
+
+    def __init__(
+        self,
+        message: str = 'Ошибка валидации данных',
+        code: Optional[int] = None,
+    ) -> None:
+        """Инициализирует исключение валидации данных.
+
+        Args:
+            message: Сообщение об ошибке
+            code: Внутренний код ошибки
+
+        """
         super().__init__(
             status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-            code=HTTPStatus.UNPROCESSABLE_ENTITY,
-            message=message)
+            message=message,
+            code=code,
+        )
 
 
 class ForbiddenException(AppException):
-    """Ошибка доступа запрещен."""
+    """Исключение: доступ запрещён.
 
-    def __init__(self, message: str = "Доступ запрещен") -> None:
-        """Инициализирует ошибку доступа запрещен."""
+    Пользователь авторизован, но не имеет прав на действие.
+    (HTTP 403 Forbidden)
+    """
+
+    def __init__(
+        self,
+        message: str = 'Доступ запрещен',
+        code: Optional[int] = None,
+    ) -> None:
+        """Инициализирует исключение запрещённого доступа.
+
+        Args:
+            message: Сообщение об ошибке
+            code: Внутренний код ошибки
+
+        """
         super().__init__(
             status_code=HTTPStatus.FORBIDDEN,
-            code=HTTPStatus.FORBIDDEN,
-            message=message)
+            message=message,
+            code=code,
+        )
 
 
 class NotFoundException(AppException):
-    """Ошибка данных не найдены."""
+    """Исключение: запрашиваемый ресурс не найден.
 
-    def __init__(self, message: str = "Данные не найдены") -> None:
-        """Инициализирует ошибку данных не найдены."""
+    Объект с указанным ID не существует.
+    (HTTP 404 Not Found)
+    """
+
+    def __init__(
+        self,
+        message: str = 'Данные не найдены',
+        code: Optional[int] = None,
+    ) -> None:
+        """Инициализирует исключение "не найдено".
+
+        Args:
+            message: Сообщение об ошибке
+            code: Внутренний код ошибки
+
+        """
         super().__init__(
             status_code=HTTPStatus.NOT_FOUND,
-            code=HTTPStatus.NOT_FOUND,
-            message=message)
+            message=message,
+            code=code,
+        )
 
 
 class BadRequestException(AppException):
-    """Ошибка в параметрах запроса."""
+    """Исключение: некорректный запрос.
 
-    def __init__(self, message: str = "Ошибка в параметрах запроса") -> None:
-        """Инициализирует ошибку запроса (HTTP 400)."""
+    Ошибка в синтаксисе или параметрах запроса (например, невалидный JSON).
+    (HTTP 400 Bad Request)
+    """
+
+    def __init__(
+        self,
+        message: str = 'Ошибка в параметрах запроса',
+        code: Optional[int] = None,
+    ) -> None:
+        """Инициализирует исключение "некорректный запрос".
+
+        Args:
+            message: Сообщение об ошибке
+            code: Внутренний код ошибки
+
+        """
         super().__init__(
             status_code=HTTPStatus.BAD_REQUEST,
-            code=HTTPStatus.BAD_REQUEST,
             message=message,
+            code=code,
+        )
+
+
+class ConflictException(AppException):
+    """Исключение: конфликт данных.
+
+    Операция нарушает уникальность или целостность (например,
+    дублирующая бронь).
+    (HTTP 409 Conflict)
+    """
+
+    def __init__(
+        self,
+        message: str = 'Конфликт данных',
+        code: Optional[int] = None,
+    ) -> None:
+        """Инициализирует исключение конфликта данных.
+
+        Args:
+            message: Сообщение об ошибке
+            code: Внутренний код ошибки
+
+        """
+        super().__init__(
+            status_code=HTTPStatus.CONFLICT,
+            message=message,
+            code=code,
         )

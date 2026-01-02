@@ -1,5 +1,5 @@
-from datetime import date, datetime, time, timedelta, timezone
-from typing import List, Optional, Self
+from datetime import date, timedelta
+from typing import List, Optional, Self, TypeVar
 from uuid import UUID
 
 from pydantic import (
@@ -16,57 +16,14 @@ from src.booking.constants import (
     MAX_BOOKING_DATE,
     MAX_GUEST_NUMBER,
 )
+from src.cafes.schemas import CafeShortInfo
+from src.common import BaseRead
+from src.slots.schemas import TimeSlotShortInfo
+from src.tables.schemas import TableShortInfo
+from src.users.schemas import UserReadView
 
 
-class UserShortInfo(BaseModel):
-    """Краткая информация о пользователе."""
-
-    id: UUID
-    username: str
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    tg_id: Optional[str] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class CafeShortInfo(BaseModel):
-    """Краткая информация о кафе."""
-
-    id: UUID
-    name: str
-    address: str
-    phone: str
-    description: Optional[str] = None
-    photo_id: Optional[UUID] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class TableShortInfo(BaseModel):
-    """Краткая информация о столе."""
-
-    id: UUID
-    description: Optional[str] = None
-    count_place: int
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class SlotShortInfo(BaseModel):
-    """Краткая информация о временном слоте."""
-
-    id: UUID
-    start_time: time
-    end_time: time
-    description: Optional[str] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-    @field_serializer('start_time', 'end_time')
-    def serialize_time(self, value: time) -> str:
-        """Сериализовать time в строку в формате HH:MM."""
-        return value.strftime('%H:%M')
+T = TypeVar('T', bound='BookingBase')
 
 
 class TablesSlots(BaseModel):
@@ -81,7 +38,7 @@ class TablesSlotsInfo(BaseModel):
 
     id: UUID
     table: TableShortInfo
-    slot: SlotShortInfo
+    slot: TimeSlotShortInfo
     is_active: bool
 
     model_config = ConfigDict(from_attributes=True)
@@ -99,8 +56,21 @@ def _validate_booking_date_in_range(booking_date: date) -> date:
     return booking_date
 
 
-class BookingCreate(BaseModel):
-    """Схема для создания бронирования."""
+def _prevent_duplicate_pairs_validator(
+    tables_slots: Optional[List[TablesSlots]],
+) -> None:
+    """Проверяет, что в списке tables_slots нет дублирующихся пар."""
+    if tables_slots is None:
+        return
+    pairs = [(ts.table_id, ts.slot_id) for ts in tables_slots]
+    if len(pairs) != len(set(pairs)):
+        raise ValueError(
+            'Повторяющиеся (table_id, slot_id) в tables_slots недопустимы.',
+        )
+
+
+class BookingBase(BaseModel):
+    """Базовая схема бронирования, содержащая общие поля."""
 
     cafe_id: UUID
     tables_slots: List[TablesSlots] = Field(
@@ -114,27 +84,12 @@ class BookingCreate(BaseModel):
         f'максимальное значение {MAX_GUEST_NUMBER}.',
     )
     note: Optional[str] = None
-    status: BookingStatus = Field(
-        default=BookingStatus.BOOKING,
-        description='Только BOOKING и ACTIVE разрешены при создании.',
-    )
     booking_date: date = Field(
         description='Должна быть в диапазоне от сегодня до MAX_BOOKING_DATE '
         'дней.',
     )
 
     model_config = ConfigDict(extra='forbid')
-
-    @field_validator('status')
-    @classmethod
-    def validate_status(cls, booking_status: BookingStatus) -> BookingStatus:
-        """Проверяет, что статус допустим при создании."""
-        if booking_status not in (BookingStatus.BOOKING, BookingStatus.ACTIVE):
-            raise ValueError(
-                'При создании бронирования допустимы только статусы: '
-                'BOOKING (0) или ACTIVE (2).',
-            )
-        return booking_status
 
     @field_validator('booking_date')
     @classmethod
@@ -143,15 +98,31 @@ class BookingCreate(BaseModel):
         return _validate_booking_date_in_range(booking_date)
 
     @model_validator(mode='after')
-    def prevent_duplicate_pairs_in_create(self) -> Self:
-        """Запрещает дублирующиеся пары в tables_slots."""
-        pairs = [(ts.table_id, ts.slot_id) for ts in self.tables_slots]
-        if len(pairs) != len(set(pairs)):
-            raise ValueError(
-                'Повторяющиеся (table_id, slot_id) в tables_slots '
-                'недопустимы.',
-            )
+    def prevent_duplicate_pairs(self: T) -> T:
+        """Запрещает дублирующиеся пары (table_id, slot_id) в tables_slots."""
+        """Запрещает дублирующиеся пары (table_id, slot_id) в tables_slots."""
+        _prevent_duplicate_pairs_validator(self.tables_slots)
         return self
+
+
+class BookingCreate(BookingBase):
+    """Схема для создания бронирования."""
+
+    status: BookingStatus = Field(
+        default=BookingStatus.BOOKING,
+        description='Только BOOKING и ACTIVE разрешены при создании.',
+    )
+
+    @field_validator('status')
+    @classmethod
+    def validate_status(cls, status: BookingStatus) -> BookingStatus:
+        """Проверяет, что статус допустим при создании."""
+        if status not in (BookingStatus.BOOKING, BookingStatus.ACTIVE):
+            raise ValueError(
+                'При создании бронирования допустимы только статусы: '
+                'BOOKING (0) или ACTIVE (2).',
+            )
+        return status
 
 
 class BookingUpdate(BaseModel):
@@ -199,13 +170,7 @@ class BookingUpdate(BaseModel):
     @model_validator(mode='after')
     def prevent_duplicate_pairs_in_update(self) -> Self:
         """Запрещает дублирующиеся пары в tables_slots."""
-        if self.tables_slots is not None:
-            pairs = [(ts.table_id, ts.slot_id) for ts in self.tables_slots]
-            if len(pairs) != len(set(pairs)):
-                raise ValueError(
-                    'Повторяющиеся (table_id, slot_id) в tables_slots '
-                    'недопустимы.',
-                )
+        _prevent_duplicate_pairs_validator(self.tables_slots)
         return self
 
     @model_validator(mode='after')
@@ -229,11 +194,10 @@ class BookingUpdate(BaseModel):
         return self
 
 
-class BookingInfo(BaseModel):
+class BookingInfo(BaseRead):
     """Полная информация о бронировании."""
 
-    id: UUID
-    user: UserShortInfo
+    user: UserReadView
     cafe: CafeShortInfo
     tables_slots: List[TablesSlotsInfo] = Field(
         validation_alias='booking_table_slots',
@@ -242,21 +206,10 @@ class BookingInfo(BaseModel):
     note: str
     status: BookingStatus
     booking_date: date
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
     @field_serializer('booking_date')
     def serialize_booking_date(self, value: date) -> str:
         """Сериализовать дату бронирования в ISO-формат (YYYY-MM-DD)."""
-        return value.isoformat()  # → "2025-12-14"
-
-    @field_serializer('created_at', 'updated_at')
-    def serialize_datetime(self, value: datetime) -> str:
-        """Сериализовать дату и время из UTC в ISO-формат с Z (UTC)."""
-        if value is None:
-            return ''
-        value = value.astimezone(timezone.utc)
-        return value.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+        return value.isoformat()

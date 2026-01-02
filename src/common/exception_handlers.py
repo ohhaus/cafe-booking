@@ -1,5 +1,6 @@
 # src/common/exception_handlers.py
 """Обработчики исключений для FastAPI приложения."""
+
 from http import HTTPStatus
 
 from fastapi import FastAPI, Request
@@ -10,8 +11,28 @@ from src.common.exceptions import AppException
 from src.common.schemas import CustomErrorResponse
 
 
+def _extract_first_error_message(exc: RequestValidationError) -> str:
+    errors = exc.errors()
+    if not errors:
+        return 'Ошибка валидации данных'
+
+    first = errors[0]
+    # Pydantic обычно кладёт текст ValueError сюда:
+    msg = first.get('msg')
+    if msg:
+        return msg
+
+    # Иногда текст может лежать глубже (на всякий случай)
+    ctx = first.get('ctx') or {}
+    if isinstance(ctx, dict) and ctx.get('error'):
+        return str(ctx['error'])
+
+    return 'Ошибка валидации данных'
+
+
 def add_exception_handlers(app: FastAPI) -> None:
     """Добавляет обработчики Кастомных исключений в наше приложение."""
+
     @app.exception_handler(AppException)
     async def app_exception_handler(
         request: Request,
@@ -19,9 +40,9 @@ def add_exception_handlers(app: FastAPI) -> None:
     ) -> JSONResponse:
         # Универсальный обработчик наших кастомных исключений
         body = CustomErrorResponse(
-            code=exc.code.value,
+            code=int(exc.status_code),
             message=exc.message,
-            ).model_dump()
+        ).model_dump()
 
         headers = None
         # Для 401 принято добавлять заголовок, чтобы понимать тип авторизации
@@ -29,10 +50,10 @@ def add_exception_handlers(app: FastAPI) -> None:
             headers = {'WWW-Authenticate': 'Bearer'}
 
         return JSONResponse(
-            status_code=exc.status_code,
+            status_code=int(exc.status_code),
             content=body,
             headers=headers,
-            )
+        )
 
     @app.exception_handler(RequestValidationError)
     async def request_validation_handler(
@@ -61,7 +82,7 @@ def add_exception_handlers(app: FastAPI) -> None:
 
         body = CustomErrorResponse(
             code=HTTPStatus.UNPROCESSABLE_ENTITY.value,
-            message='Ошибка валидации данных',
+            message=_extract_first_error_message(exc),
         ).model_dump()
         return JSONResponse(
             status_code=HTTPStatus.UNPROCESSABLE_ENTITY.value,
