@@ -60,7 +60,7 @@ class DatabaseSettings(BaseSettings):
 class RedisSettings(BaseSettings):
     """Настройки Redis."""
 
-    URL: str = Field(default='redis://localhost:6379/0')
+    URL: str = Field(default='redis://redis:6379/0')
     PASSWORD: str = Field(default='password')
     SOCKET_CONNECTION_TIMEOUT: PositiveInt = Field(default=5)
     SOCKET_TIMEOUT: PositiveInt = Field(default=5)
@@ -79,12 +79,15 @@ class CacheSettings(BaseSettings):
 
     TTL_CAFES_LIST: PositiveInt = Field(default=600)  # 10 минут
     TTL_CAFE_BY_ID: PositiveInt = Field(default=1800)  # 30 минут
+    TTL_CAFE_ACTIVE: PositiveInt = Field(default=300)  # 5 минут
     TTL_DISHES_LIST: PositiveInt = Field(default=900)  # 15 минут
     TTL_DISH_BY_ID: PositiveInt = Field(default=1800)  # 30 минут
     TTL_ACTIONS_LIST: PositiveInt = Field(default=300)  # 5 минут
     TTL_ACTION_BY_ID: PositiveInt = Field(default=900)  # 15 минут
     TTL_CAFE_TABLES: PositiveInt = Field(default=120)  # 2 минуты
     TTL_CAFE_TABLE: PositiveInt = Field(default=300)  # 5 минут
+    TTL_CAFE_TABLE_ACTIVE: PositiveInt = Field(default=300)  # 5 минут
+    TTL_CAFE_SLOT_ACTIVE: PositiveInt = Field(default=300)  # 5 минут
     TTL_MEDIA: PositiveInt = Field(default=3600)  # 60 минут
 
     model_config = SettingsConfigDict(

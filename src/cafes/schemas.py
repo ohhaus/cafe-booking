@@ -52,7 +52,7 @@ class CafeCreate(CafeBase):
 
     managers_id: list[UUID] = Field(
         default_factory=list,
-        description='Список UUID менеджеров',
+        description='UUID сотрудников (ADMIN/MANAGER)',
     )
 
 

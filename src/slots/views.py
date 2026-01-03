@@ -1,13 +1,17 @@
-import asyncio
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.cafes.cafe_scoped import get_cafe_or_none
-from src.cafes.service import is_admin_or_manager
+from src.cafes.service import is_admin_or_manager, manager_can_cud_cafe
+from src.common.exceptions import (
+    ForbiddenException,
+    NotFoundException,
+    ValidationErrorException,
+)
 from src.database.sessions import get_async_session
 from src.slots.crud import slot_crud
 from src.slots.responses import (
@@ -52,69 +56,24 @@ async def get_time_slots(
 ) -> list[TimeSlotWithCafeInfo]:
     """Получение списка доступных для бронирования временных слотов в кафе.
 
-    Для администраторов и менеджеров - все столы (с возможностью выбора),
+    Для администраторов и менеджеров - все слоты (с возможностью выбора),
     для пользователей - только активные.
     """
-    try:
-        cafe = await get_cafe_or_none(db, cafe_id)
-        if not cafe:
-            logger.warning(
-                'Кафе %s не найдено при получении списка слотов',
-                cafe_id,
-                extra={
-                    'user_id': str(current_user.id),
-                    'cafe_id': str(cafe_id),
-                },
-            )
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail='Кафе не найдено.',
-            )
+    cafe = await get_cafe_or_none(db, cafe_id)
+    if not cafe:
+        raise NotFoundException('Кафе не найдено.')
 
-        privileged = is_admin_or_manager(current_user)
-        include_all = show_all if privileged else False
+    privileged = is_admin_or_manager(current_user)
+    include_all = show_all if privileged else False
 
-        slots = await slot_crud.list_slots(
-            db,
-            current_user=current_user,
-            cafe_id=cafe_id,
-            show_all=include_all,
-        )
+    slots = await slot_crud.list_slots(
+        db,
+        current_user=current_user,
+        cafe_id=cafe_id,
+        show_all=include_all,
+    )
 
-        return [TimeSlotWithCafeInfo.model_validate(slot) for slot in slots]
-
-    except asyncio.CancelledError:
-        raise
-
-    except HTTPException:
-        raise
-
-    except DatabaseError as e:
-        await db.rollback()
-        logger.error(
-            'Ошибка базы данных при получении списка слотов (cafe=%s): %s',
-            cafe_id,
-            str(e),
-            extra={'user_id': str(current_user.id), 'cafe_id': str(cafe_id)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Временная ошибка базы данных. Попробуйте позже.',
-        ) from e
-
-    except Exception as e:
-        await db.rollback()
-        logger.critical(
-            'Неожиданная ошибка при получении списка слотов (cafe=%s): %s',
-            cafe_id,
-            str(e),
-            extra={'user_id': str(current_user.id), 'cafe_id': str(cafe_id)},
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Внутренняя ошибка сервера.',
-        ) from e
+    return [TimeSlotWithCafeInfo.model_validate(slot) for slot in slots]
 
 
 @router.post(
@@ -136,6 +95,26 @@ async def create_time_slot(
 
     Только для администраторов и менеджеров.
     """
+    cafe = await get_cafe_or_none(db, cafe_id)
+    if not cafe:
+        raise NotFoundException('Кафе не найдено.')
+
+    if not await manager_can_cud_cafe(
+        db,
+        user=current_user,
+        cafe_id=cafe_id,
+    ):
+        raise ForbiddenException(
+            'Недостаточно прав для изменения этого кафе.',
+        )
+
+    slot = await slot_crud.create_slot(
+        db,
+        current_user=current_user,
+        cafe_id=cafe_id,
+        data=slot_data,
+    )
+
     try:
         slot = await slot_crud.create_slot(
             db,
@@ -143,122 +122,33 @@ async def create_time_slot(
             cafe_id=cafe_id,
             data=slot_data,
         )
-
-        slot = await slot_crud.get_slot(
-            db,
-            current_user=current_user,
-            cafe_id=cafe_id,
-            slot_id=slot.id,
-        )
         if slot is None:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail='Не удалось получить созданный слот.',
-            )
+            raise ValidationErrorException('Не удалось создать слот.')
 
-        logger.info(
-            'Слот %s успешно создан пользователем %s (cafe=%s)',
-            slot.id,
-            current_user.id,
-            cafe_id,
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-                'slot_id': str(slot.id),
-            },
-        )
         return TimeSlotWithCafeInfo.model_validate(slot)
 
-    except asyncio.CancelledError:
-        raise
-
-    except ValueError as e:
+    except (ValueError,) as e:
         await db.rollback()
-        logger.warning(
-            'Ошибка валидации при создании слота (cafe=%s): %s',
-            cafe_id,
-            str(e),
-            extra={'user_id': str(current_user.id), 'cafe_id': str(cafe_id)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e),
-        ) from e
+        raise ValidationErrorException(str(e)) from e
 
-    except PermissionError as e:
+    except (PermissionError,) as e:
         await db.rollback()
-        logger.warning(
-            'Доступ запрещен при создании слота (cafe=%s): %s',
-            cafe_id,
-            str(e),
-            extra={'user_id': str(current_user.id), 'cafe_id': str(cafe_id)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e),
-        ) from e
+        raise ForbiddenException(str(e)) from e
 
-    except LookupError as e:
+    except (LookupError,) as e:
         await db.rollback()
-        logger.warning(
-            'Кафе не найдено при создании слота (cafe=%s): %s',
-            cafe_id,
-            str(e),
-            extra={'user_id': str(current_user.id), 'cafe_id': str(cafe_id)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+        raise NotFoundException(str(e)) from e
 
     except IntegrityError as e:
         await db.rollback()
-        logger.error(
-            'Ошибка целостности данных при создании слота (cafe=%s): %s',
-            cafe_id,
-            str(e),
-            extra={'user_id': str(current_user.id), 'cafe_id': str(cafe_id)},
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail='Конфликт данных или нарушение ограничений.',
+        raise ValidationErrorException(
+            'Конфликт данных или нарушение ограничений.',
         ) from e
 
     except DatabaseError as e:
         await db.rollback()
-        logger.error(
-            'Ошибка базы данных при создании слота (cafe=%s): %s',
-            cafe_id,
-            str(e),
-            extra={'user_id': str(current_user.id), 'cafe_id': str(cafe_id)},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Временная ошибка базы данных. Попробуйте позже.',
-        ) from e
-
-    except HTTPException as e:
-        logger.warning(
-            'HTTP ошибка при создании слота (cafe=%s): %s',
-            cafe_id,
-            e.detail,
-            extra={'user_id': str(current_user.id), 'cafe_id': str(cafe_id)},
-        )
-        raise
-
-    except Exception as e:
-        await db.rollback()
-        logger.critical(
-            'Неожиданная ошибка при создании слота (cafe=%s): %s',
-            cafe_id,
-            str(e),
-            extra={'user_id': str(current_user.id), 'cafe_id': str(cafe_id)},
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Внутренняя ошибка сервера.',
+        raise ValidationErrorException(
+            'Ошибка базы данных. Попробуйте позже.',
         ) from e
 
 
@@ -279,73 +169,16 @@ async def get_time_slot_by_id(
     Для администраторов и менеджеров - видят активные и не активные слоты,
     для пользователей - только активные.
     """
-    try:
-        slot = await slot_crud.get_slot(
-            db,
-            current_user=current_user,
-            cafe_id=cafe_id,
-            slot_id=slot_id,
-        )
-        if not slot:
-            logger.warning(
-                'Слот %s не найден (cafe=%s)',
-                slot_id,
-                cafe_id,
-                extra={
-                    'user_id': str(current_user.id),
-                    'cafe_id': str(cafe_id),
-                    'slot_id': str(slot_id),
-                },
-            )
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail='Слот не найден.',
-            )
+    slot = await slot_crud.get_slot(
+        db,
+        current_user=current_user,
+        cafe_id=cafe_id,
+        slot_id=slot_id,
+    )
+    if not slot:
+        raise NotFoundException('Слот не найден.')
 
-        return TimeSlotWithCafeInfo.model_validate(slot)
-
-    except asyncio.CancelledError:
-        raise
-
-    except HTTPException:
-        raise
-
-    except DatabaseError as e:
-        await db.rollback()
-        logger.error(
-            'Ошибка базы данных при получении слота (cafe=%s, slot=%s): %s',
-            cafe_id,
-            slot_id,
-            str(e),
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-                'slot_id': str(slot_id),
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Временная ошибка базы данных. Попробуйте позже.',
-        ) from e
-
-    except Exception as e:
-        await db.rollback()
-        logger.critical(
-            'Неожиданная ошибка при получении слота (cafe=%s, slot=%s): %s',
-            cafe_id,
-            slot_id,
-            str(e),
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-                'slot_id': str(slot_id),
-            },
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Внутренняя ошибка сервера.',
-        ) from e
+    return TimeSlotWithCafeInfo.model_validate(slot)
 
 
 @router.patch(
@@ -367,6 +200,17 @@ async def update_time_slot(
 
     Только для администраторов и менеджеров.
     """
+    cafe = await get_cafe_or_none(db, cafe_id)
+    if not cafe:
+        raise NotFoundException('Кафе не найдено.')
+
+    if not await manager_can_cud_cafe(
+        db,
+        user=current_user,
+        cafe_id=cafe_id,
+    ):
+        raise ForbiddenException('Недостаточно прав для изменения этого кафе.')
+
     try:
         slot = await slot_crud.update_slot(
             db,
@@ -376,124 +220,25 @@ async def update_time_slot(
             data=slot_data,
         )
         if slot is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail='Слот не найден.',
-            )
-
-        logger.info(
-            'Слот %s успешно обновлён пользователем %s (cafe=%s)',
-            slot.id,
-            current_user.id,
-            cafe_id,
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-                'slot_id': str(slot.id),
-            },
-        )
-
+            raise NotFoundException('Слот не найден.')
         return TimeSlotWithCafeInfo.model_validate(slot)
 
-    except asyncio.CancelledError:
-        raise
-
-    except ValueError as e:
+    except (ValueError,) as e:
         await db.rollback()
-        logger.error(
-            'PATCH slot %s ValueError: %s',
-            slot_id,
-            str(e),
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-                'slot_id': str(slot_id),
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e),
-        ) from e
+        raise ValidationErrorException(str(e)) from e
 
-    except PermissionError as e:
+    except (PermissionError,) as e:
         await db.rollback()
-        logger.warning(
-            'PATCH slot %s Forbidden: %s',
-            slot_id,
-            str(e),
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-                'slot_id': str(slot_id),
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e),
-        ) from e
-
-    except HTTPException as e:
-        logger.warning(
-            'PATCH slot %s HTTPException: %s',
-            slot_id,
-            e.detail,
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-                'slot_id': str(slot_id),
-            },
-        )
-        raise
+        raise ForbiddenException(str(e)) from e
 
     except IntegrityError as e:
         await db.rollback()
-        logger.error(
-            'PATCH slot %s IntegrityError: %s',
-            slot_id,
-            str(e),
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-                'slot_id': str(slot_id),
-            },
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail='Конфликт данных или нарушение ограничений.',
+        raise ValidationErrorException(
+            'Конфликт данных или нарушение ограничений.',
         ) from e
 
     except DatabaseError as e:
         await db.rollback()
-        logger.error(
-            'PATCH slot %s DatabaseError: %s',
-            slot_id,
-            str(e),
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-                'slot_id': str(slot_id),
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Временная ошибка базы данных. Попробуйте позже.',
-        ) from e
-
-    except Exception as e:
-        await db.rollback()
-        logger.critical(
-            'PATCH slot %s Unexpected error: %s',
-            slot_id,
-            str(e),
-            extra={
-                'user_id': str(current_user.id),
-                'cafe_id': str(cafe_id),
-                'slot_id': str(slot_id),
-            },
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Внутренняя ошибка сервера.',
+        raise ValidationErrorException(
+            'Ошибка базы данных. Попробуйте позже.',
         ) from e
