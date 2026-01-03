@@ -1,17 +1,25 @@
 # src/dishes/services.py
 
-from typing import List
+import logging
+from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select
+from pydantic import ValidationError
+from sqlalchemy import desc, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.cafes.models import Cafe
+from src.common.exceptions import NotFoundException, ValidationErrorException
 from src.database.service import DatabaseService
+from src.dishes.crud import dishes_crud
 from src.dishes.models import Dish, dish_cafe
-from src.dishes.schemas import DishCreate, DishUpdate
+from src.dishes.schemas import DishCreate, DishInfo, DishUpdate
 from src.dishes.validators import check_exists_dish
+from src.users.models import User, UserRole
+
+
+logger = logging.getLogger('app')
 
 
 class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
@@ -123,4 +131,141 @@ class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
         return result.scalars().all()
 
 
-dish_service = DishService(Dish)
+async def get_dishes(
+    session: AsyncSession,
+    current_user: User,
+    show_all: bool = False,
+    cafe_id: Optional[UUID] = None,
+) -> List[Dish]:
+    """Получение списка блюд с фильтрацией по Кафе и Статусу активности.
+
+    - Для обычных пользователей: только активные блюда.
+    - Для Админов и Менеджеров: можно фильтровать по активности.
+    - show_all: показывать только активные (по умолчанию) или все.
+    """
+    logger.info(
+        'Пользователь %s запросил все блюда с фильтрами: '
+        'show_all=%s, cafe_id=%s',
+        current_user.id, show_all, cafe_id,
+        extra={'user_id': str(current_user.id)},
+    )
+
+    filters = []
+
+    if not current_user.is_staff():
+        show_all = False
+
+    if cafe_id is not None:
+        filters.append(Dish.cafes.any(Cafe.id == cafe_id))
+    if not show_all:
+        filters.append(Dish.active.is_(True))
+
+    dishes = await dishes_crud.get_multi(
+        session=session,
+        filters=filters,
+        relationships=['cafes'],
+        order_by=[desc(Dish.created_at)],
+    )
+
+    found_count = len(dishes)
+
+    logger.info(
+        'Найдено блюд: %d (show_all=%s, cafe_id=%s)',
+        found_count, show_all, cafe_id,
+        extra={
+            "found_count": found_count,
+            "show_all": show_all,
+            "cafe_id": str(cafe_id) if cafe_id else None,
+        },
+    )
+
+    if found_count == 0:
+        raise NotFoundException('Блюда не найдены.')
+
+    try:
+        result = [
+            DishInfo.model_validate(d, from_attributes=True) for d in dishes
+            ]
+
+        logger.info(
+            'Пользователю %s возвращено блюд: %d',
+            current_user.id, len(result),
+            extra={
+                'user_id': str(current_user.id),
+                'returned_count': len(result),
+            },
+        )
+        return result
+
+    except ValidationError:
+        logger.error(
+            'Ошибка валидации данных блюд',
+            extra={'user_id': str(current_user.id)},
+            exc_info=True,
+        )
+        raise ValidationErrorException('Ошибка валидации данных блюда')
+
+
+async def get_dish_by_id(
+    session: AsyncSession,
+    dish_id: UUID,
+    current_user: User,
+) -> Dish:
+    """Получает Блюдо по ID с учётом прав доступа."""
+    logger.info(
+        'Пользователь c ID: %s запросил информацию о блюде с ID: %s',
+        current_user.id,
+        dish_id,
+        extra={'user_id': str(current_user.id)},
+    )
+
+    # Определяем, может ли пользователь видеть все блюда
+    can_view_all = current_user.role in (UserRole.ADMIN, UserRole.MANAGER)
+
+    # Формируем фильтры
+    filters = [Dish.id == dish_id]
+    if not can_view_all:
+        filters.append(Dish.active.is_(True))
+
+    # Получаем блюдо из БД
+    dishes = await dishes_service.get_multi(
+        session=session,
+        filters=filters,
+        relationships=['cafes'],
+    )
+
+    dish = dishes[0] if dishes else None
+
+    if dish is None:
+        logger.warning(
+            'Блюдо с ID: %s не найдено для пользователя %s',
+            dish_id,
+            current_user.id,
+            extra={'user_id': str(current_user.id)},
+        )
+        raise NotFoundException(message='Блюдо не найдено')
+
+    try:
+        validate_dish = DishInfo.model_validate(dish, from_attributes=True)
+
+        logger.info(
+            'Блюдо с ID: %s успешно получено для пользователя %s',
+            dish_id,
+            current_user.id,
+            extra={'user_id': str(current_user.id)},
+        )
+
+        return validate_dish
+
+    except ValidationError:
+        logger.error(
+            'Ошибка валидации данных блюда',
+            extra={'user_id': str(current_user.id)},
+            exc_info=True,
+        )
+        raise ValidationErrorException(
+            'Ошибка валидации данных блюда',
+            )
+
+
+dishes_service = DishService(Dish)
