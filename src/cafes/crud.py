@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 from uuid import UUID
 
@@ -10,6 +11,9 @@ from src.cafes.models import Cafe
 from src.cafes.schemas import CafeCreate, CafeCreateDB, CafeUpdate
 from src.cafes.service import sync_cafe_managers
 from src.database.service import DatabaseService
+
+
+logger = logging.getLogger('app')
 
 
 class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
@@ -53,7 +57,7 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
         self,
         session: AsyncSession,
         cafe_in: CafeCreate,
-    ) -> Cafe:
+    ) -> Optional[Cafe]:
         """Создаёт кафе и синхронизирует список менеджеров."""
         managers_ids = cafe_in.managers_id
 
@@ -77,11 +81,20 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
         session: AsyncSession,
         cafe: Cafe,
         cafe_in: CafeUpdate,
-    ) -> Cafe:
+    ) -> Optional[Cafe]:
         """Обновляет кафе и при необходимости синхронизирует менеджеров."""
-        payload = cafe_in.model_dump(exclude_unset=True)
+        payload = cafe_in.model_dump(
+            exclude_unset=True,
+            exclude={'managers_id'},
+        )
+        payload = cafe_in.model_dump(
+            exclude_unset=True,
+            exclude={'managers_id'},
+        )
+        if payload.get('phone') is not None:
+            payload['phone'] = str(payload['phone'])
 
-        managers_ids = payload.pop('managers_id', None)
+        managers_ids = cafe_in.managers_id
 
         cafe = await super().update(
             session,
@@ -91,6 +104,11 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
         )
 
         if managers_ids is not None:
+            logger.info(
+                'sync_cafe_managers: cafe_id=%s, managers_ids=%s',
+                cafe.id,
+                managers_ids,
+            )
             await sync_cafe_managers(session, cafe, managers_ids)
 
         await session.commit()

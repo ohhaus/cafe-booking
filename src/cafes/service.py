@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from sqlalchemy import delete, exists, func, select
@@ -7,6 +8,9 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from src.cafes.models import Cafe, cafes_managers
 from src.users.models import User, UserRole
+
+
+logger = logging.getLogger('app')
 
 
 def is_admin_or_manager(user: User) -> bool:
@@ -74,6 +78,11 @@ async def sync_cafe_managers(
             )
             valid_ids = set(result.scalars().all())
             missing = new_ids - valid_ids
+            logger.warning(
+                'Invalid managers ids for cafe %s: missing=%s',
+                cafe.id,
+                missing,
+            )
             raise ValueError(
                 'Некоторые managers_id не найдены'
                 'или не являются активными ADMIN/MANAGER: '

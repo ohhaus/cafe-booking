@@ -48,8 +48,10 @@ async def create_cafe(
     try:
         cafe = await cafe_crud.create_cafe(db, cafe_data)
     except ValueError as e:
+        await db.rollback()
         raise ValidationErrorException(str(e)) from e
     except IntegrityError as e:
+        await db.rollback()
         raise ValidationErrorException(
             'Конфликт данных при создании кафе',
         ) from e
