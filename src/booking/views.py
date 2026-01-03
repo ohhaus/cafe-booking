@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Tuple
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
@@ -7,9 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.booking.schemas import BookingCreate, BookingInfo, BookingUpdate
 from src.booking.services import (
-    BookingValidationService,
-    get_booking_by_id_service,
-    get_bookings_service,
+    BookingService,
 )
 from src.cache.client import cache
 from src.common.responses import (
@@ -44,12 +42,12 @@ async def create_booking(
     session: AsyncSession = Depends(get_async_session),
 ) -> BookingInfo | None:
     """Создаёт новое бронирование."""
-    validation_service = BookingValidationService(
+    service = BookingService(
         session=session,
-        client_cache=cache,
+        cache=cache,
     )
-    booking = await validation_service.validate_and_create_booking(
-        data=booking_data,
+    booking = await service.create_booking(
+        booking_data=booking_data,
         current_user_id=current_user.id,
     )
 
@@ -57,11 +55,6 @@ async def create_booking(
         'Бронирование %s успешно создано',
         booking.id,
         extra={'user_id': str(current_user.id)},
-    )
-
-    await session.refresh(
-        booking,
-        attribute_names=['booking_table_slots', 'user', 'cafe'],
     )
 
     return BookingInfo.model_validate(booking)
@@ -104,15 +97,18 @@ async def get_all_bookings(
     session: AsyncSession = Depends(get_async_session),
 ) -> list[BookingInfo] | None:
     """Обработчик GET /booking для получения списка бронирований."""
-    bookings = await get_bookings_service(
+    service = BookingService(
         session=session,
+        cache=cache,
+    )
+    bookings = await service.get_bookings(
         current_user=current_user,
         show_all=show_all,
         cafe_id=cafe_id,
         user_id=user_id,
     )
 
-    return [BookingInfo.model_validate(b) for b in bookings]
+    return [BookingInfo.model_validate(booking) for booking in bookings]
 
 
 @router.get(
@@ -130,17 +126,16 @@ async def get_booking_by_id(
     session: AsyncSession = Depends(get_async_session),
 ) -> BookingInfo | None:
     """Получает бронирование по ID с учётом прав доступа."""
-    booking = await get_booking_by_id_service(
+    service = BookingService(
         session=session,
+        cache=cache,
+    )
+    booking = await service.get_booking_by_id(
         booking_id=booking_id,
         current_user=current_user,
-        is_staff=current_user.is_staff(),
     )
 
     return BookingInfo.model_validate(booking)
-
-
-Pair = Tuple[UUID, UUID]
 
 
 @router.patch(
@@ -159,11 +154,11 @@ async def patch_booking(
     session: AsyncSession = Depends(get_async_session),
 ) -> BookingInfo | None:
     """Частично обновляет бронирование по его ID."""
-    validation_service = BookingValidationService(
+    service = BookingService(
         session=session,
-        client_cache=cache,
+        cache=cache,
     )
-    updated_booking = await validation_service.validate_and_update_booking(
+    updated_booking = await service.update_booking(
         booking_id=booking_id,
         current_user=current_user,
         patch_data=patch_data,
