@@ -12,10 +12,10 @@ from pydantic import (
 )
 
 from src.booking.constants import (
-    BookingStatus,
     MAX_BOOKING_DATE,
     MAX_GUEST_NUMBER,
 )
+from src.booking.enums import BookingStatus
 from src.cafes.schemas import CafeShortInfo
 from src.common import BaseRead
 from src.slots.schemas import TimeSlotShortInfo
