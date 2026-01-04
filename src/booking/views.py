@@ -3,19 +3,17 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.booking.dependencies import get_booking_service
 from src.booking.schemas import BookingCreate, BookingInfo, BookingUpdate
 from src.booking.services import (
     BookingService,
 )
-from src.cache.client import cache
 from src.common.responses import (
     create_responses,
     list_responses,
     retrieve_responses,
 )
-from src.database.sessions import get_async_session
 from src.users.dependencies import require_roles
 from src.users.models import User
 
@@ -39,22 +37,12 @@ async def create_booking(
     current_user: User = Depends(
         require_roles(),
     ),
-    session: AsyncSession = Depends(get_async_session),
+    service: BookingService = Depends(get_booking_service),
 ) -> BookingInfo | None:
     """Создаёт новое бронирование."""
-    service = BookingService(
-        session=session,
-        cache=cache,
-    )
     booking = await service.create_booking(
         booking_data=booking_data,
         current_user_id=current_user.id,
-    )
-
-    logger.info(
-        'Бронирование %s успешно создано',
-        booking.id,
-        extra={'user_id': str(current_user.id)},
     )
 
     return BookingInfo.model_validate(booking)
@@ -94,13 +82,9 @@ async def get_all_bookings(
         '(только для staff)',
     ),
     current_user: User = Depends(require_roles()),
-    session: AsyncSession = Depends(get_async_session),
+    service: BookingService = Depends(get_booking_service),
 ) -> list[BookingInfo] | None:
     """Обработчик GET /booking для получения списка бронирований."""
-    service = BookingService(
-        session=session,
-        cache=cache,
-    )
     bookings = await service.get_bookings(
         current_user=current_user,
         show_all=show_all,
@@ -123,13 +107,9 @@ async def get_all_bookings(
 async def get_booking_by_id(
     booking_id: UUID,
     current_user: User = Depends(require_roles()),
-    session: AsyncSession = Depends(get_async_session),
+    service: BookingService = Depends(get_booking_service),
 ) -> BookingInfo | None:
     """Получает бронирование по ID с учётом прав доступа."""
-    service = BookingService(
-        session=session,
-        cache=cache,
-    )
     booking = await service.get_booking_by_id(
         booking_id=booking_id,
         current_user=current_user,
@@ -151,22 +131,13 @@ async def patch_booking(
     booking_id: UUID,
     patch_data: BookingUpdate,
     current_user: User = Depends(require_roles()),
-    session: AsyncSession = Depends(get_async_session),
+    service: BookingService = Depends(get_booking_service),
 ) -> BookingInfo | None:
     """Частично обновляет бронирование по его ID."""
-    service = BookingService(
-        session=session,
-        cache=cache,
-    )
     updated_booking = await service.update_booking(
         booking_id=booking_id,
         current_user=current_user,
         patch_data=patch_data,
-    )
-
-    await session.refresh(
-        updated_booking,
-        attribute_names=['booking_table_slots', 'user', 'cafe'],
     )
 
     return BookingInfo.model_validate(updated_booking)

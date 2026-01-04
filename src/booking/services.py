@@ -102,6 +102,11 @@ class BookingService:
                 booking,
                 attribute_names=['booking_table_slots', 'user', 'cafe'],
             )
+            logger.info(
+                'Бронирование %s успешно создано',
+                booking.id,
+                extra={'user_id': str(current_user_id)},
+            )
             return booking
 
         except SQLAlchemyError:
