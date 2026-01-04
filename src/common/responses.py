@@ -162,6 +162,26 @@ def create_responses(model: Type[BaseModel]) -> Responses:
     )
 
 
+def update_responses(model: Type[BaseModel]) -> Responses:
+    """Получить пресет `responses` для эндпоинтов частичного обновления.
+
+    (обычно PATCH /resource/{id})
+    Включает:
+    - 200 OK со схемой `model`;
+    - типовые ошибки: 400/401/403/404/422.
+    """
+    return make_responses(
+        errors=(
+            HTTPStatus.BAD_REQUEST,
+            HTTPStatus.UNAUTHORIZED,
+            HTTPStatus.FORBIDDEN,
+            HTTPStatus.NOT_FOUND,
+            HTTPStatus.CONFLICT,
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+        ),
+    )
+
+
 def retrieve_responses() -> Responses:
     """Получить пресет `responses` для получения/обновления одного ресурса.
 

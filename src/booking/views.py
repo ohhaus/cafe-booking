@@ -13,6 +13,7 @@ from src.common.responses import (
     create_responses,
     list_responses,
     retrieve_responses,
+    update_responses,
 )
 from src.users.dependencies import require_roles
 from src.users.models import User
@@ -123,7 +124,7 @@ async def get_booking_by_id(
     description='Частичное обновление бронирования по его ID. '
     'Для администраторов и менеджеров - все бронирования, '
     'для пользователей - только свои.',
-    responses=create_responses(BookingInfo),
+    responses=update_responses(BookingInfo),
 )
 async def patch_booking(
     booking_id: UUID,
