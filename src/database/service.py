@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 from sqlalchemy import Select, and_, exists, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -331,3 +332,11 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 conditions.append(field == value)
 
         return conditions
+
+
+def unwrap_sa_integrity_error(e: IntegrityError) -> Exception | None:
+    """Разбирает тест исключения, чтобы определить причину Integrity Error."""
+    orig = getattr(e, 'orig', None)
+    if orig is None:
+        return None
+    return getattr(orig, '__cause__', None) or getattr(orig, 'cause', None)

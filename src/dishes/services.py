@@ -4,18 +4,19 @@ import logging
 from typing import List, Optional
 from uuid import UUID
 
+from asyncpg.exceptions import UniqueViolationError
 from pydantic import ValidationError
 from sqlalchemy import desc, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.cafes.models import Cafe
 from src.common.exceptions import NotFoundException, ValidationErrorException
-from src.database.service import DatabaseService
+from src.database.service import DatabaseService, unwrap_sa_integrity_error
 from src.dishes.crud import dishes_crud
 from src.dishes.models import Dish, dish_cafe
 from src.dishes.schemas import DishCreate, DishInfo, DishUpdate
-from src.dishes.validators import check_exists_dish
+from src.dishes.validators import check_exists_dish, validate_active_cafes_ids
 from src.users.models import User, UserRole
 
 
@@ -25,48 +26,102 @@ logger = logging.getLogger('app')
 class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
     """Сервис для работы с блюдами."""
 
-    async def create_dish(
-            self, session: AsyncSession,
-            obj_in: DishCreate,
+    async def create_dish_service(
+            self,
+            session: AsyncSession,
+            dish_in: DishCreate,
+            current_user: User,
             ) -> Dish:
         """Создание нового блюда.
 
         Если указаны cafes_id, связывает блюдо с кафе.
         """
-        data = obj_in.model_dump(exclude_unset=True)
-        cafes_id = data.pop("cafes_id", None)
+        user_id = str(current_user.id)
+        dish_name = dish_in.name
 
-        if cafes_id:
-            cafes_id = list(dict.fromkeys(cafes_id))
+        logger.info(
+            'Пользователь %s инициировал создание блюда %s',
+            user_id,
+            dish_name,
+            extra={'user_id': user_id, 'dish_name': dish_name},
+        )
+
+        data = dish_in.model_dump(exclude_unset=True)
+        cafes_ids = data.pop('cafes_id', None)
+
+        if cafes_ids:
+            cafes_ids = list(dict.fromkeys(cafes_ids))
 
         db_obj = Dish(**data)
 
         try:
-            if cafes_id:
-                res = await session.execute(
-                    select(Cafe).where(Cafe.id.in_(cafes_id)),
+            if cafes_ids:
+                try:
+                    cafes = await validate_active_cafes_ids(
+                        session=session,
+                        cafes_ids=cafes_ids,
                     )
-                cafes_list = res.scalars().all()
+                except NotFoundException:
+                    logger.warning(
+                        'Часть ID Кафе не найдено или не активны',
+                        extra={
+                            'user_id': user_id,
+                            'dish_name': dish_name,
+                            'missing_cafes_ids': [str(x) for x in cafes_ids],
+                        },
+                    )
+                    raise
 
-                found_ids = {c.id for c in cafes_list}
-                missing = [cid for cid in cafes_id if cid not in found_ids]
-                if missing:
-                    raise ValueError(f"Не найдены кафе с id: {missing}")
-
-                db_obj.cafes = cafes_list
+                db_obj.cafes = cafes
 
             session.add(db_obj)
             await session.commit()
+            await session.refresh(db_obj, attribute_names=['cafes'])
+            logger.info(
+                'Создание блюда %s успешно завершено',
+                dish_name,
+                extra={
+                    'user_id': user_id,
+                    'dish_id': str(db_obj.id),
+                    'dish_name': dish_name,
+                },
+            )
+            return db_obj
 
-        except IntegrityError:
+        except (NotFoundException, ValidationErrorException):
             await session.rollback()
             raise
+
+        except IntegrityError as e:
+            await session.rollback()
+            cause = unwrap_sa_integrity_error(e)
+            if isinstance(cause, UniqueViolationError):
+                # можно точнее: по constraint
+                if getattr(cause, "constraint_name", None) == "dish_name_key":
+                    raise ValidationErrorException(
+                        f"Блюдо с именем '{dish_name}' уже существует",
+                    ) from e
+            raise
+
+        except SQLAlchemyError:
+            # любые ошибки SQLAlchemy/БД
+            await session.rollback()
+            logger.exception(
+                'Создание блюда упало с ошибкой БД',
+                extra={'user_id': user_id,
+                       'dish_name': dish_name},
+            )
+            raise
+
         except Exception:
+            # реально неожиданное
             await session.rollback()
+            logger.exception(
+                'Создание блюда упало с необработанной ошибкой',
+                extra={'user_id': user_id,
+                       'dish_name': dish_name},
+            )
             raise
-
-        await session.refresh(db_obj, attribute_names=["cafes"])
-        return db_obj
 
     async def update_dish(
         self,
@@ -136,7 +191,7 @@ async def get_dishes(
     current_user: User,
     show_all: bool = False,
     cafe_id: Optional[UUID] = None,
-) -> List[Dish]:
+) -> List[DishInfo]:
     """Получение списка блюд с фильтрацией по Кафе и Статусу активности.
 
     - Для обычных пользователей: только активные блюда.
@@ -180,7 +235,7 @@ async def get_dishes(
     )
 
     if found_count == 0:
-        raise NotFoundException('Блюда не найдены.')
+        return []
 
     try:
         result = [
@@ -210,7 +265,7 @@ async def get_dish_by_dish_id(
     session: AsyncSession,
     dish_id: UUID,
     current_user: User,
-) -> Dish:
+) -> DishInfo:
     """Получает Блюдо по ID с учётом прав доступа."""
     logger.info(
         'Пользователь c ID: %s запросил информацию о блюде с ID: %s',
@@ -228,7 +283,7 @@ async def get_dish_by_dish_id(
         filters.append(Dish.active.is_(True))
 
     # Получаем блюдо из БД
-    dishes = await dishes_service.get_multi(
+    dishes = await dishes_crud.get_multi(
         session=session,
         filters=filters,
         relationships=['cafes'],

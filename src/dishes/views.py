@@ -3,7 +3,7 @@ import logging
 from typing import Annotated, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, Path, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -18,7 +18,6 @@ from src.database.sessions import get_async_session
 from src.dishes.models import Dish
 from src.dishes.schemas import DishCreate, DishInfo, DishUpdate
 from src.dishes.services import dishes_service, get_dish_by_dish_id, get_dishes
-from src.dishes.validators import check_exists_cafes_ids
 from src.users.dependencies import require_roles
 from src.users.models import User, UserRole
 
@@ -74,7 +73,7 @@ async def get_all_dishes(
     ),
     responses=create_responses(DishInfo),
 )
-async def create_dish(
+async def create_dish_new(
     dish_in: DishCreate,
     session: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(
@@ -82,35 +81,10 @@ async def create_dish(
     ),
 ) -> DishInfo:
     """Создание нового блюда."""
-    logger.info(
-        'Пользователь %s инициировал создание блюда %s',
-        current_user.id,
-        dish_in.name,
-        extra={'user_id': str(current_user.id)},
-    )
-
-    # Проверка существования кафе
-    await check_exists_cafes_ids(dish_in.cafes_id, session)
-
-    # Логика создания блюда
-    try:
-        new_dish = await dishes_service.create_dish(
-            session=session,
-            obj_in=dish_in,
-            )
-        return DishInfo.model_validate(new_dish)
-
-    except Exception as e:
-        logger.critical(
-            'Ошибка при создании блюда: %s',
-            str(e),
-            extra={'user_id': str(current_user.id)},
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Ошибка при создании блюда.',
-        ) from e
+    dish = await dishes_service.create_dish_service(session=session,
+                                                    dish_in=dish_in,
+                                                    current_user=current_user)
+    return DishInfo.model_validate(dish)
 
 
 @router.get(
