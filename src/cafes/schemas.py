@@ -4,7 +4,13 @@ from datetime import datetime
 from typing import Optional, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    model_validator,
+)
 
 from src.config import (
     MAX_ADDRESS_LENGTH,
@@ -64,11 +70,18 @@ class CafeInfo(CafeBase):
         default_factory=list,
         description='Менеджеры кафе',
     )
-    is_active: bool = Field(validation_alias='active')
+    is_active: bool = Field(
+        validation_alias=AliasChoices('active', 'is_active'),
+        serialization_alias='is_active',
+    )
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(from_attributes=True, extra='forbid')
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra='forbid',
+        populate_by_name=True,
+    )
 
 
 class CafeShortInfo(CafeBase):
@@ -88,7 +101,10 @@ class CafeUpdate(BaseModel):
     description: str | None = None
     photo_id: UUID | None = None
     managers_id: list[UUID] | None = None
-    active: bool | None = Field(None, alias='is_active')
+    is_active: bool | None = Field(
+        None,
+        validation_alias=AliasChoices('active', 'is_active'),
+    )
 
     model_config = ConfigDict(extra='forbid', populate_by_name=True)
 

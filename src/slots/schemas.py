@@ -4,7 +4,13 @@ from datetime import datetime, time
 from typing import Optional, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    model_validator,
+)
 
 from src.cafes.schemas import CafeShortInfo
 from src.config import MAX_DESCRIPTION_LENGTH
@@ -51,7 +57,7 @@ class TimeSlotInfo(TimeSlotBase):
     id: UUID
     is_active: bool = Field(
         # Стыкаовка с моделью, в модели поле называется active
-        validation_alias='active',
+        validation_alias=AliasChoices('active', 'is_active'),
         description='Активен ли слот',
     )
     created_at: datetime

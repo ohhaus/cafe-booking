@@ -15,6 +15,7 @@ from src.booking.crud import booking_crud, booking_table_slot_crud
 from src.booking.models import Booking
 from src.booking.schemas import BookingCreate, BookingUpdate
 from src.cache.client import RedisCache
+from src.celery.tasks.admin_events import notify_admins_about_event
 from src.common.exceptions import ForbiddenException, NotFoundException
 from src.users.models import User
 
@@ -210,6 +211,27 @@ async def create_or_update_booking_service(
             )
 
         await session.commit()
+        try:
+            event = 'created' if is_create else 'updated'
+
+            notify_admins_about_event.delay(
+                str(booking.id),
+                event,
+                {
+                    'message': (
+                        'Создана новая бронь'
+                        if is_create
+                        else 'Бронь обновлена'
+                    ),
+                },
+            )
+        except Exception:
+            logger.exception(
+                'Не удалось поставить Celery-задачи после commit '
+                '(booking_id=%s, is_create=%s)',
+                getattr(booking, 'id', None),
+                is_create,
+            )
         return booking
 
     except SQLAlchemyError:
@@ -385,6 +407,35 @@ async def cancel_or_restore_booking_service(
             commit=False,
         )
         await session.commit()
+        try:
+            event = (
+                'canceled'
+                if new_status == BookingStatus.CANCELED
+                else 'restored'
+            )
+
+            notify_admins_about_event.delay(
+                str(booking.id),
+                event,
+                {
+                    'message': (
+                        'Бронь отменена'
+                        if event == 'canceled'
+                        else 'Бронь восстановлена'
+                    ),
+                },
+            )
+        except Exception:
+            logger.exception(
+                'Не удалось поставить Celery-задачу после commit '
+                '(booking_id=%s, event=%s)',
+                booking.id,
+                (
+                    'canceled'
+                    if new_status == BookingStatus.CANCELED
+                    else 'restored'
+                ),
+            )
         return booking
     except SQLAlchemyError:
         await session.rollback()
