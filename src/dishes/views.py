@@ -17,7 +17,7 @@ from src.common.responses import (
 from src.database.sessions import get_async_session
 from src.dishes.models import Dish
 from src.dishes.schemas import DishCreate, DishInfo, DishUpdate
-from src.dishes.services import dish_service, get_dish_by_id, get_dishes
+from src.dishes.services import dishes_service, get_dish_by_dish_id, get_dishes
 from src.dishes.validators import check_exists_cafes_ids
 from src.users.dependencies import require_roles
 from src.users.models import User, UserRole
@@ -94,7 +94,7 @@ async def create_dish(
 
     # Логика создания блюда
     try:
-        new_dish = await dish_service.create_dish(
+        new_dish = await dishes_service.create_dish(
             session=session,
             obj_in=dish_in,
             )
@@ -124,13 +124,13 @@ async def create_dish(
     ),
     responses=retrieve_responses(),
 )
-async def get_dish_by_dish_id(
+async def get_dish_by_id(
     dish_id: Annotated[UUID, Path(title="ID блюда")],
     current_user: User = Depends(require_roles(allow_guest=False)),
     session: AsyncSession = Depends(get_async_session),
 ) -> DishInfo:
     """Получение информации о блюде по его ID."""
-    return await get_dish_by_id(
+    return await get_dish_by_dish_id(
         session=session,
         dish_id=dish_id,
         current_user=current_user,

@@ -206,7 +206,7 @@ async def get_dishes(
         raise ValidationErrorException('Ошибка валидации данных блюда')
 
 
-async def get_dish_by_id(
+async def get_dish_by_dish_id(
     session: AsyncSession,
     dish_id: UUID,
     current_user: User,
