@@ -5,6 +5,14 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.cache.client import RedisCache, get_cache
+from src.cache.keys import key_cafe, key_cafes_list
+from src.cafes.cafes_help_caches import (
+    cache_get_list,
+    cache_get_one,
+    cache_set,
+    invalidate_cafes_cache,
+)
 from src.cafes.crud import cafe_crud
 from src.cafes.responses import (
     CREATE_RESPONSES,
@@ -12,12 +20,12 @@ from src.cafes.responses import (
     GET_RESPONSES,
 )
 from src.cafes.schemas import CafeCreate, CafeInfo, CafeUpdate
-from src.cafes.service import is_admin_or_manager, manager_can_cud_cafe
+from src.cafes.service import ensure_manager_can_cud_cafe, is_admin_or_manager
 from src.common.exceptions import (
-    ForbiddenException,
     NotFoundException,
     ValidationErrorException,
 )
+from src.config import settings
 from src.database.sessions import get_async_session
 from src.users.dependencies import require_roles
 from src.users.models import User, UserRole
@@ -43,10 +51,27 @@ async def create_cafe(
         ),
     ),
     db: AsyncSession = Depends(get_async_session),
+    cache: RedisCache = Depends(get_cache),
 ) -> CafeInfo:
     """Создает новое кафе. Только для администраторов."""
     try:
         cafe = await cafe_crud.create_cafe(db, cafe_data)
+        if cafe is None:
+            raise ValidationErrorException('Не удалось создать кафе.')
+
+        await invalidate_cafes_cache(cache, cafe_id=cafe.id)
+
+        logger.info(
+            'Кафе %s (%s) успешно создано',
+            cafe.id,
+            cafe.name,
+            extra={'user_id': str(current_user.id), 'cafe_id': str(cafe.id)},
+        )
+        return CafeInfo.model_validate(cafe).model_dump(
+            mode='json',
+            by_alias=True,
+        )
+
     except ValueError as e:
         await db.rollback()
         raise ValidationErrorException(str(e)) from e
@@ -56,19 +81,10 @@ async def create_cafe(
             'Конфликт данных при создании кафе',
         ) from e
     except DatabaseError as e:
+        await db.rollback()
         raise ValidationErrorException(
             'Ошибка базы данных',
         ) from e
-    logger.info(
-        'Кафе %s (%s) успешно создано',
-        cafe.id,
-        cafe.name,
-        extra={
-            'user_id': str(current_user.id),
-            'cafe_id': str(cafe.id),
-        },
-    )
-    return CafeInfo.model_validate(cafe)
 
 
 @router.get(
@@ -91,28 +107,46 @@ async def get_all_cafes(
     ),
     current_user: User = Depends(require_roles(allow_guest=False)),
     db: AsyncSession = Depends(get_async_session),
+    cache: RedisCache = Depends(get_cache),
 ) -> list[CafeInfo]:
     """Получение списка кафе.
 
     Для администраторов и менеджеров - все кафе (с возможностью выбора),
     для пользователей - только активные.
     """
-    privileged = is_admin_or_manager(current_user)
-    include_inactive = show_all if privileged else False
+    is_privileged = is_admin_or_manager(current_user)
+    show_all_effective = show_all if is_privileged else False
+
+    key = key_cafes_list(show_all=show_all_effective)
+    ttl = settings.cache.TTL_CAFES_LIST
+
+    cached = await cache_get_list(cache, key, CafeInfo)
+    if cached is not None:
+        return cached
 
     cafes = await cafe_crud.get_list_cafe(
         db,
-        include_inactive=include_inactive,
+        show_all_effective=show_all_effective,
     )
+
+    payload = [
+        CafeInfo.model_validate(cafe).model_dump(
+            mode='json',
+            by_alias=True,
+        )
+        for cafe in cafes
+    ]
+    await cache_set(cache, key, payload, ttl)
+
     logger.info(
-        'GET /cafes: найдено %d (include_inactive=%s, show_all=%s)',
+        'GET /cafes: найдено %d (show_all_effective=%s, show_all=%s)',
         len(cafes),
-        include_inactive,
+        show_all_effective,
         show_all,
         extra={'user_id': str(current_user.id)},
     )
 
-    return [CafeInfo.model_validate(cafe) for cafe in cafes]
+    return payload
 
 
 @router.get(
@@ -125,23 +159,36 @@ async def get_cafe_by_id(
     cafe_id: UUID,
     current_user: User = Depends(require_roles(allow_guest=False)),
     db: AsyncSession = Depends(get_async_session),
+    cache: RedisCache = Depends(get_cache),
 ) -> CafeInfo:
     """Получение информации о кафе по его ID.
 
     Для администраторов и менеджеров - все кафе,
     для пользователей - только активные.
     """
-    include_inactive = is_admin_or_manager(current_user)
+    show_all_effective = is_admin_or_manager(current_user)
+
+    key = key_cafe(cafe_id, show_all=show_all_effective)
+    ttl = settings.cache.TTL_CAFE_BY_ID
+
+    cached = await cache_get_one(cache, key, CafeInfo)
+    if cached is not None:
+        return cached
 
     cafe = await cafe_crud.get_cafe_by_id(
         db,
         cafe_id=cafe_id,
-        include_inactive=include_inactive,
+        show_all_effective=show_all_effective,
     )
     if not cafe:
         raise NotFoundException('Кафе не найдено')
 
-    return CafeInfo.model_validate(cafe)
+    payload = CafeInfo.model_validate(cafe).model_dump(
+        mode='json',
+        by_alias=True,
+    )
+    await cache_set(cache, key, payload, ttl)
+    return payload
 
 
 @router.patch(
@@ -157,6 +204,7 @@ async def update_cafe(
         require_roles(allowed_roles=[UserRole.MANAGER, UserRole.ADMIN]),
     ),
     db: AsyncSession = Depends(get_async_session),
+    cache: RedisCache = Depends(get_cache),
 ) -> CafeInfo:
     """Обновление информации о кафе по его ID.
 
@@ -165,22 +213,36 @@ async def update_cafe(
     cafe = await cafe_crud.get_cafe_by_id(
         db,
         cafe_id=cafe_id,
-        include_inactive=True,
+        show_all_effective=True,
     )
     if cafe is None:
         raise NotFoundException('Кафе не найдено')
 
-    if not await manager_can_cud_cafe(
+    await ensure_manager_can_cud_cafe(
         db,
         user=current_user,
         cafe_id=cafe_id,
-    ):
-        raise ForbiddenException(
-            'Недостаточно прав для изменения этого кафе',
-        )
+        cache=cache,
+    )
 
     try:
-        cafe = await cafe_crud.update_cafe(db, cafe, cafe_data)
+        updated = await cafe_crud.update_cafe(db, cafe, cafe_data)
+        if updated is None:
+            raise ValidationErrorException('Не удалось обновить кафе.')
+
+        await invalidate_cafes_cache(cache, cafe_id=cafe_id)
+
+        logger.info(
+            'Кафе %s обновлено пользователем %s',
+            cafe_id,
+            current_user.id,
+            extra={'user_id': str(current_user.id), 'cafe_id': str(cafe_id)},
+        )
+
+        return CafeInfo.model_validate(updated).model_dump(
+            mode='json',
+            by_alias=True,
+        )
 
     except ValueError as e:
         await db.rollback()
@@ -197,11 +259,3 @@ async def update_cafe(
         raise ValidationErrorException(
             'Ошибка базы данных при обновлении кафе',
         ) from e
-
-    logger.info(
-        'Кафе %s обновлено пользователем %s',
-        cafe.id,
-        current_user.id,
-        extra={'user_id': str(current_user.id), 'cafe_id': str(cafe.id)},
-    )
-    return CafeInfo.model_validate(cafe)

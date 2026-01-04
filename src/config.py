@@ -87,8 +87,12 @@ class CacheSettings(BaseSettings):
     TTL_CAFE_TABLES: PositiveInt = Field(default=120)  # 2 минуты
     TTL_CAFE_TABLE: PositiveInt = Field(default=300)  # 5 минут
     TTL_CAFE_TABLE_ACTIVE: PositiveInt = Field(default=300)  # 5 минут
+    TTL_CAFE_SLOTS: PositiveInt = Field(default=120)  # 2 минуты
+    TTL_CAFE_SLOT: PositiveInt = Field(default=300)  # 5 минуты
     TTL_CAFE_SLOT_ACTIVE: PositiveInt = Field(default=300)  # 5 минут
     TTL_MEDIA: PositiveInt = Field(default=3600)  # 60 минут
+    TTL_MANAGER_CUD_CAFE: PositiveInt = Field(default=120)  # 2 минуты
+    TTL_CAFE_META: PositiveInt = Field(default=120)  # 2 минуты
 
     model_config = SettingsConfigDict(
         env_prefix='CACHE_',

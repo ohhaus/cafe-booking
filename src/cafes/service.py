@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import delete, exists, func, select
@@ -6,7 +7,11 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
+from src.cache.client import RedisCache
+from src.cache.keys import key_manager_cud_cafe
 from src.cafes.models import Cafe, cafes_managers
+from src.common.exceptions import ForbiddenException
+from src.config import settings
 from src.users.models import User, UserRole
 
 
@@ -29,11 +34,31 @@ def manager_conditions(
     )
 
 
+def parse_cached_bool(
+    value: Any,
+) -> bool | None:
+    """Безопасно превращает значение из Redis в bool."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return bool(value)
+    if isinstance(value, (bytes, bytearray)):
+        value = value.decode('utf-8', errors='ignore')
+    if isinstance(value, str):
+        s = value.strip().lower()
+        if s in {'1', 'true', 't', 'yes', 'y', 'on'}:
+            return True
+        if s in {'0', 'false', 'f', 'no', 'n', 'off', ''}:
+            return False
+    return None
+
+
 async def manager_can_cud_cafe(
     db: AsyncSession,
     *,
     user: User,
     cafe_id: UUID,
+    cache: RedisCache | None = None,
 ) -> bool:
     """Ограничение CUD (Create, Update, Delete) для MANAGER.
 
@@ -43,6 +68,15 @@ async def manager_can_cud_cafe(
     if user.role != UserRole.MANAGER:
         return True
 
+    key = None
+    if cache is not None:
+        key = key_manager_cud_cafe(user.id, cafe_id)
+        cached = await cache.get(key)
+        if cached is not None:
+            parsed = parse_cached_bool(cached)
+            if parsed is not None:
+                return parsed
+
     stmt = select(
         exists().where(
             cafes_managers.columns.cafe_id == cafe_id,
@@ -50,7 +84,33 @@ async def manager_can_cud_cafe(
         ),
     )
 
-    return bool(await db.scalar(stmt))
+    allowed = bool(await db.scalar(stmt))
+
+    if cache is not None and key is not None:
+        await cache.set(
+            key,
+            allowed,
+            ttl=settings.cache.TTL_MANAGER_CUD_CAFE,
+        )
+
+    return allowed
+
+
+async def ensure_manager_can_cud_cafe(
+    db: AsyncSession,
+    *,
+    user: User,
+    cafe_id: UUID,
+    cache: RedisCache,
+) -> None:
+    """Проверка прав пользователя."""
+    if not await manager_can_cud_cafe(
+        db,
+        user=user,
+        cafe_id=cafe_id,
+        cache=cache,
+    ):
+        raise ForbiddenException('Недостаточно прав ...')
 
 
 async def sync_cafe_managers(

@@ -87,10 +87,6 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
             exclude_unset=True,
             exclude={'managers_id'},
         )
-        payload = cafe_in.model_dump(
-            exclude_unset=True,
-            exclude={'managers_id'},
-        )
         if payload.get('phone') is not None:
             payload['phone'] = str(payload['phone'])
 
@@ -112,17 +108,18 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
             await sync_cafe_managers(session, cafe, managers_ids)
 
         await session.commit()
+        await session.refresh(cafe)
         return await self._get_with_managers_by_id(session, cafe.id)
 
     async def get_list_cafe(
         self,
         session: AsyncSession,
         *,
-        include_inactive: bool,
+        show_all_effective: bool,
     ) -> list[Cafe]:
         """Получение списка кафе."""
         stmt = self._stmt_with_managers()
-        if not include_inactive:
+        if not show_all_effective:
             stmt = stmt.where(Cafe.active.is_(True))
 
         result = await session.execute(stmt)
@@ -133,11 +130,11 @@ class CafeService(DatabaseService[Cafe, CafeCreateDB, CafeUpdate]):
         session: AsyncSession,
         *,
         cafe_id: UUID,
-        include_inactive: bool,
+        show_all_effective: bool,
     ) -> Optional[Cafe]:
         """Получение кафе по его ID."""
         stmt = self._stmt_with_managers().where(Cafe.id == cafe_id)
-        if not include_inactive:
+        if not show_all_effective:
             stmt = stmt.where(Cafe.active.is_(True))
 
         result = await session.execute(stmt)
