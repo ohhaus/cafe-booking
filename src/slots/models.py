@@ -16,12 +16,12 @@ from sqlalchemy.orm import (
     relationship,
 )
 
-from src.booking.models import BookingTableSlot
 from src.config import MAX_DESCRIPTION_LENGTH
 from src.database.base import Base
 
 
 if TYPE_CHECKING:
+    from src.booking.models import BookingTableSlot
     from src.cafes.models import Cafe
 
 
@@ -53,6 +53,7 @@ class Slot(Base):
     )
     # Связи
     booking_table_slots: Mapped[list['BookingTableSlot']] = relationship(
+        'BookingTableSlot',
         back_populates='slot',
         uselist=True,
         lazy='selectin',
