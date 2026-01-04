@@ -13,7 +13,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.booking.constants import BookingStatus, MAX_NOTES_LENGTH
+from src.booking.constants import MAX_NOTES_LENGTH
+from src.booking.enums import BookingStatus
 from src.database import Base
 
 

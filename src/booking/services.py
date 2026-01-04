@@ -11,8 +11,8 @@ from sqlalchemy import desc
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.booking.constants import BookingStatus
 from src.booking.crud import booking_crud, booking_table_slot_crud
+from src.booking.enums import BookingStatus
 from src.booking.models import Booking
 from src.booking.schemas import BookingCreate, BookingUpdate
 from src.booking.validators import (
