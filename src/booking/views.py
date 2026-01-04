@@ -34,18 +34,16 @@ logger = logging.getLogger('app')
 )
 async def create_booking(
     booking_data: BookingCreate,
-    current_user: User = Depends(
-        require_roles(),
-    ),
+    current_user: User = Depends(require_roles()),
     service: BookingService = Depends(get_booking_service),
 ) -> BookingInfo | None:
     """Создаёт новое бронирование."""
-    booking = await service.create_booking(
+    created_booking = await service.create_booking(
         booking_data=booking_data,
         current_user_id=current_user.id,
     )
 
-    return BookingInfo.model_validate(booking)
+    return BookingInfo.model_validate(created_booking)
 
 
 @router.get(
@@ -125,7 +123,7 @@ async def get_booking_by_id(
     description='Частичное обновление бронирования по его ID. '
     'Для администраторов и менеджеров - все бронирования, '
     'для пользователей - только свои.',
-    responses=retrieve_responses(),
+    responses=create_responses(BookingInfo),
 )
 async def patch_booking(
     booking_id: UUID,

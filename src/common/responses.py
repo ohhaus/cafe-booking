@@ -68,6 +68,10 @@ ERROR_404 = error_response(
     HTTPStatus.NOT_FOUND,
     'Данные не найдены',
 )
+ERROR_409 = error_response(
+    HTTPStatus.CONFLICT,
+    'Конфликт данных',
+)
 ERROR_422 = error_response(
     HTTPStatus.UNPROCESSABLE_ENTITY,
     'Ошибка валидации данных',
@@ -81,6 +85,7 @@ _ERROR_BY_STATUS: dict[HTTPStatus, Responses] = {
     HTTPStatus.UNAUTHORIZED: ERROR_401,
     HTTPStatus.FORBIDDEN: ERROR_403,
     HTTPStatus.NOT_FOUND: ERROR_404,
+    HTTPStatus.CONFLICT: ERROR_409,
     HTTPStatus.UNPROCESSABLE_ENTITY: ERROR_422,
 }
 
@@ -151,6 +156,7 @@ def create_responses(model: Type[BaseModel]) -> Responses:
             HTTPStatus.BAD_REQUEST,
             HTTPStatus.UNAUTHORIZED,
             HTTPStatus.FORBIDDEN,
+            HTTPStatus.CONFLICT,
             HTTPStatus.UNPROCESSABLE_ENTITY,
         ),
     )
