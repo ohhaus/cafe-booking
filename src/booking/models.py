@@ -83,18 +83,21 @@ class Booking(Base):
     # --- связи ---
     # Один пользователь -> много бронирований
     user: Mapped['User'] = relationship(
+        'User',
         back_populates='bookings',
         lazy='selectin',
     )
 
     # Одно кафе -> много бронирований
     cafe: Mapped['Cafe'] = relationship(
+        'Cafe',
         back_populates='bookings',
         lazy='selectin',
     )
 
     # Одна бронь --> много столов и слотов
     booking_table_slots: Mapped[List['BookingTableSlot']] = relationship(
+        'BookingTableSlot',
         back_populates='booking',
         uselist=True,
         lazy='selectin',
@@ -166,16 +169,19 @@ class BookingTableSlot(Base):
     # --- связи ---
     # Один к многим: одно бронирование --> много столов и слотов
     booking: Mapped['Booking'] = relationship(
+        'Booking',
         back_populates='booking_table_slots',
         lazy='selectin',
     )
     # Один стол может быть забронирован несколько раз
     table: Mapped['Table'] = relationship(
+        'Table',
         back_populates='booking_table_slots',
         lazy='selectin',
     )
     # Один временной слот может использоваться в нескольких бронях
     slot: Mapped['Slot'] = relationship(
+        'Slot',
         back_populates='booking_table_slots',
         lazy='selectin',
     )

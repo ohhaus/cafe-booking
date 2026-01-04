@@ -82,23 +82,26 @@ class SlotService(DatabaseService[Slot, TimeSlotCreateDB, TimeSlotUpdate]):
     async def create_slot(
         self,
         session: AsyncSession,
+        *,
         current_user: User,
         cafe_id: UUID,
         data: TimeSlotCreate,
+        cafe_checked: bool = False,
     ) -> Slot:
         """Создаёт слот в указанном кафе.
 
         Доступно только staff-пользователям. Перед созданием проверяет,
         что кафе существует. Слот создаётся с привязкой к cafe_id.
         """
+        if not cafe_checked:
+            cafe = await get_cafe_or_none(session, cafe_id)
+            if not cafe:
+                raise LookupError('Кафе не найдено.')
+
         require_staff(
             current_user,
             'Недостаточно прав для создания слота',
         )
-
-        cafe = await get_cafe_or_none(session, cafe_id)
-        if not cafe:
-            raise LookupError('Кафе не найдено')
 
         slot_db = TimeSlotCreateDB(cafe_id=cafe_id, **data.model_dump())
         return await super().create(session, obj_in=slot_db, commit=True)
@@ -106,10 +109,12 @@ class SlotService(DatabaseService[Slot, TimeSlotCreateDB, TimeSlotUpdate]):
     async def update_slot(
         self,
         session: AsyncSession,
+        *,
         current_user: User,
         cafe_id: UUID,
         slot_id: UUID,
         data: TimeSlotUpdate,
+        cafe_checked: bool = False,
     ) -> Optional[Slot]:
         """Частично обновляет слот в рамках кафе.
 
@@ -121,6 +126,10 @@ class SlotService(DatabaseService[Slot, TimeSlotCreateDB, TimeSlotUpdate]):
               (учитывается частичное обновление, когда передано только одно
               поле)
         """
+        if not cafe_checked:
+            cafe = await get_cafe_or_none(session, cafe_id)
+            if not cafe:
+                raise LookupError('Кафе не найдено.')
         require_staff(
             current_user,
             'Недостаточно прав для обновления слота',

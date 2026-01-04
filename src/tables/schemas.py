@@ -4,7 +4,13 @@ from datetime import datetime
 from typing import Optional, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    model_validator,
+)
 
 from src.cafes.schemas import CafeShortInfo
 from src.config import MAX_DESCRIPTION_LENGTH
@@ -43,7 +49,7 @@ class TableInfo(TableBase):
 
     id: UUID
     is_active: bool = Field(
-        validation_alias='active',
+        validation_alias=AliasChoices('active', 'is_active'),
         description='Активен ли стол',
     )
     created_at: datetime

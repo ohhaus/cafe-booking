@@ -98,6 +98,8 @@ class TableService(DatabaseService[Table, TableCreateDB, TableUpdate]):
         current_user: User,
         cafe_id: UUID,
         data: TableCreate,
+        *,
+        cafe_checked: bool = False,
     ) -> Table:
         """Создаёт стол в указанном кафе.
 
@@ -110,9 +112,10 @@ class TableService(DatabaseService[Table, TableCreateDB, TableUpdate]):
             'Недостаточно прав для создания стола',
         )
 
-        cafe = await get_cafe_or_none(session, cafe_id)
-        if not cafe:
-            raise LookupError('Кафе не найдено')
+        if not cafe_checked:
+            cafe = await get_cafe_or_none(session, cafe_id)
+            if not cafe:
+                raise LookupError('Кафе не найдено')
 
         table_db = TableCreateDB(cafe_id=cafe_id, **data.model_dump())
 
@@ -125,6 +128,8 @@ class TableService(DatabaseService[Table, TableCreateDB, TableUpdate]):
         cafe_id: UUID,
         table_id: UUID,
         data: TableUpdate,
+        *,
+        cafe_checked: bool = False,
     ) -> Optional[Table]:
         """Частично обновляет стол в рамках кафе.
 
@@ -135,6 +140,11 @@ class TableService(DatabaseService[Table, TableCreateDB, TableUpdate]):
             current_user,
             'Недостаточно прав для обновления стола',
         )
+
+        if not cafe_checked:
+            cafe = await get_cafe_or_none(session, cafe_id)
+            if not cafe:
+                raise LookupError('Кафе не найдено.')
 
         table = await self.get_table(
             session,

@@ -55,6 +55,10 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/postgres
       REDIS_URL: redis://redis:6379/0
       REDIS_PASSWORD: password
+      CELERY_BROKER_DB: 1
+      CELERY_RESULT_DB: 2
+      CELERY_TIMEZONE: Europe/Moscow
+      CELERY_ENABLE_UTC: "true"
     depends_on:
       db:
         condition: service_healthy
@@ -64,9 +68,94 @@ services:
     networks:
       - backend
 
+  celery_worker:
+    build:
+      context: ..
+      dockerfile: src/Dockerfile
+    container_name: infra-celery-workeer
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/postgres
+      REDIS_URL: redis://redis:6379/0
+      REDIS_PASSWORD: password
+      CELERY_BROKER_DB: 1
+      CELERY_RESULT_DB: 2
+      CELERY_TIMEZONE: Europe/Moscow
+      CELERY_ENABLE_UTC: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../src:/app/src
+    command: ["celery", "-A", "src.celery.celery_app:celery_app", "worker", "-l", "debug"]
+    restart: unless-stopped
+    networks:
+      - backend
+
+  celery_beat:
+    build:
+      context: ..
+      dockerfile: src/Dockerfile
+    container_name: infra-celery-beat
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/postgres
+      REDIS_URL: redis://redis:6379/0
+      REDIS_PASSWORD: password
+      CELERY_BROKER_DB: 1
+      CELERY_RESULT_DB: 2
+      CELERY_TIMEZONE: Europe/Moscow
+      CELERY_ENABLE_UTC: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../src:/app/src
+      - celerybeat_data:/app/celerybeat
+    command: >
+      sh -c "mkdir -p /app/celerybeat &&
+             celery -A src.celery.celery_app:celery_app beat -l info
+             --schedule=/app/celerybeat/celerybeat-schedule
+             --pidfile=/app/celerybeat/celerybeat.pid"
+    restart: unless-stopped
+    networks:
+      - backend
+
+  flower:
+    build:
+      context: ..
+      dockerfile: src/Dockerfile
+    container_name: infra-flower
+    env_file:
+      - ../.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      REDIS_PASSWORD: password
+      CELERY_BROKER_DB: 1
+      CELERY_RESULT_DB: 2
+      CELERY_TIMEZONE: Europe/Moscow
+      CELERY_ENABLE_UTC: "true"
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "5555:5555"
+    command: ["celery", "-A", "src.celery.celery_app:celery_app", "flower", "--port=5555"]
+    restart: unless-stopped
+    networks:
+      - backend
+
+
 volumes:
   postgres_data:
   redis_data:
+  celerybeat_data:
 
 networks:
   backend:
