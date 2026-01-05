@@ -4,18 +4,14 @@ from typing import Annotated, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from src.common.exceptions import NotFoundException
 from src.common.responses import (
     create_responses,
     list_responses,
     retrieve_responses,
 )
 from src.database.sessions import get_async_session
-from src.dishes.models import Dish
 from src.dishes.schemas import DishCreate, DishInfo, DishUpdate
 from src.dishes.services import dishes_service, get_dish_by_dish_id, get_dishes
 from src.users.dependencies import require_roles
@@ -112,31 +108,6 @@ async def get_dish_by_id(
 
 
 @router.patch(
-    '/test/{dish_id}',
-    response_model=DishInfo,
-    summary='Обновление информации о блюде по его ID',
-    description='Обновление информации о блюде по его ID. '
-    'Только для администраторов и менеджеров.',
-    responses=retrieve_responses(),
-)
-async def update_dish_new(
-    dish_id: UUID,
-    dish_update: DishUpdate,
-    current_user: User = Depends(
-        require_roles([UserRole.MANAGER, UserRole.ADMIN]),
-    ),
-    session: AsyncSession = Depends(get_async_session),
-) -> DishInfo:
-    """Обновление информации о блюде по его ID."""
-    return await dishes_service.update_dish_service(
-        session=session,
-        dish_id=dish_id,
-        dish_update=dish_update,
-        current_user=current_user,
-    )
-
-
-@router.patch(
     '/{dish_id}',
     response_model=DishInfo,
     summary='Обновление информации о блюде по его ID',
@@ -153,24 +124,9 @@ async def update_dish(
     session: AsyncSession = Depends(get_async_session),
 ) -> DishInfo:
     """Обновление информации о блюде по его ID."""
-    stmt = (
-        select(
-            Dish,
-        )
-        .where(Dish.id == dish_id)
-        .options(selectinload(Dish.cafes))
+    return await dishes_service.update_dish_service(
+        session=session,
+        dish_id=dish_id,
+        dish_update=dish_update,
+        current_user=current_user,
     )
-    result = await session.execute(stmt)
-    dish = result.scalar_one_or_none()
-
-    if not dish:
-        raise NotFoundException
-
-    # Обновляем данные
-    for key, value in dish_update.dict(exclude_unset=True).items():
-        setattr(dish, key, value)
-
-    await session.commit()
-    await session.refresh(dish)
-
-    return dish

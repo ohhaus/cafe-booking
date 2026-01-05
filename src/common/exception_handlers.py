@@ -92,7 +92,7 @@ def add_exception_handlers(app: FastAPI) -> None:
                 'body': exc.body,
             },
         )
-        
+
         body = CustomErrorResponse(
             code=HTTPStatus.UNPROCESSABLE_ENTITY.value,
             message=_extract_first_error_message(exc),
