@@ -175,7 +175,7 @@ class UserUpdate(BaseUser, RoleMixin):
 
     username: UsernameStr | None = None
     password: PasswordStr | None = None
-    is_active: bool | None = Field(None, alias='active')
+    is_active: bool | None = Field(None)
 
     @field_validator('password', mode='before')
     @classmethod
