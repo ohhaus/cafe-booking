@@ -1,3 +1,4 @@
+# src/dishes/models.py
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING
 import uuid
@@ -50,7 +51,8 @@ class Dish(Base):
     photo_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey('image_media.id'),
-        nullable=False,
+        unique=True,
+        nullable=True,
     )
     price: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),

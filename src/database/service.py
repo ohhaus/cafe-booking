@@ -2,9 +2,11 @@
 """Базовый сервисный слой для работы с БД."""
 
 from typing import Any, Generic, Sequence, Type, TypeVar
+from uuid import UUID
 
 from pydantic import BaseModel
 from sqlalchemy import Select, and_, exists, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -38,7 +40,7 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
     async def get(
         self,
-        id: str,
+        id: UUID,
         session: AsyncSession,
     ) -> ModelType | None:
         """Получает объект по ID.
@@ -66,6 +68,9 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             relationships: Список имён связей для подгрузки
         Returns:
             Список опций для SQLAlchemy запроса
+        Examples:
+            options = self._build_options(['cafes', 'menus'])
+            stmt = select(Dish).options(*options)
 
         """
         if not relationships:
@@ -327,3 +332,11 @@ class DatabaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 conditions.append(field == value)
 
         return conditions
+
+
+def unwrap_sa_integrity_error(e: IntegrityError) -> Exception | None:
+    """Разбирает тест исключения, чтобы определить причину Integrity Error."""
+    orig = getattr(e, 'orig', None)
+    if orig is None:
+        return None
+    return getattr(orig, '__cause__', None) or getattr(orig, 'cause', None)

@@ -1,4 +1,3 @@
-# src/dishes/schemas.py
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
@@ -19,25 +18,26 @@ from src.config import (
 class BaseDish(BaseModel):
     """Базовая схема блюда."""
 
-    name: str = Field(..., max_length=MAX_NAME_LENGTH)
-    description: Optional[str] = Field(
-        None,
-        max_length=MAX_DESCRIPTION_LENGTH,
-        min_length=MIN_DESCRIPTION_LENGTH,
+    name: str
+    description: str | None = None
+    photo_id: UUID
+
+    price: Decimal = Field(
+        ...,
+        ge=DISH_MIN_PRICE,
+        le=DISH_MAX_PRICE,
+        multiple_of=Decimal('0.01'),
     )
-    photo_id: Optional[UUID] = Field(None, description='UUID фото')
-    price: Decimal = Field(..., ge=DISH_MIN_PRICE, le=DISH_MAX_PRICE)
 
 
 class DishCreate(BaseDish):
-    """Создание блюда."""
+    """Схема блюда для создания нового."""
 
-    price: int = Field(gt=DISH_MIN_PRICE, le=DISH_MAX_PRICE)
     cafes_id: list[UUID]
 
 
 class DishUpdate(BaseModel):
-    """Обновление блюда."""
+    """Схема блюда для обновления: все поля опциональны."""
 
     name: Optional[str] = Field(None, max_length=MAX_NAME_LENGTH)
     description: Optional[str] = Field(
@@ -46,17 +46,23 @@ class DishUpdate(BaseModel):
         min_length=MIN_DESCRIPTION_LENGTH,
     )
     photo_id: Optional[UUID] = Field(None, description='UUID фото')
-    price: Optional[int] = Field(None, ge=DISH_MIN_PRICE, le=DISH_MAX_PRICE)
-    cafes_id: Optional[List[UUID]]
-    is_active: bool = True
-    price: int = Field(gt=0)
+    price: Optional[Decimal] = Field(
+        None,
+        ge=DISH_MIN_PRICE,
+        le=DISH_MAX_PRICE,
+        multiple_of=Decimal('0.01'),
+    )
+    cafes_id: Optional[List[UUID]] = None
+    is_active: Optional[bool] = None
+
+    model_config = ConfigDict(extra='forbid')
 
 
 class DishInfo(BaseDish):
     """Полная информации о блюде."""
 
     id: UUID
-    cafes: List[CafeShortInfo] = []
+    cafes: List[CafeShortInfo] = Field(default_factory=list)
     is_active: bool = True
     created_at: datetime
     updated_at: datetime

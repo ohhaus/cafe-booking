@@ -2,6 +2,7 @@
 """Обработчики исключений для FastAPI приложения."""
 
 from http import HTTPStatus
+import logging
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -9,6 +10,9 @@ from fastapi.responses import JSONResponse
 
 from src.common.exceptions import AppException
 from src.common.schemas import CustomErrorResponse
+
+
+logger = logging.getLogger('app')
 
 
 def _extract_first_error_message(exc: RequestValidationError) -> str:
@@ -79,6 +83,15 @@ def add_exception_handlers(app: FastAPI) -> None:
                 status_code=HTTPStatus.BAD_REQUEST.value,
                 content=body,
             )
+
+        logger.warning(
+            'Validation error',
+            extra={
+                'path': str(request.url.path),
+                'errors': exc.errors(),
+                'body': exc.body,
+            },
+        )
 
         body = CustomErrorResponse(
             code=HTTPStatus.UNPROCESSABLE_ENTITY.value,

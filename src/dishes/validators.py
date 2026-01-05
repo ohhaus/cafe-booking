@@ -1,11 +1,13 @@
 # src/dishes/validators.py
+from typing import Iterable, Sequence
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.cafes.models import Cafe
-from src.common.exceptions import BadRequestException, NotFoundException
+from src.common.exceptions import NotFoundException
+from src.dishes.crud import dishes_crud
 from src.dishes.models import Dish
 
 
@@ -39,45 +41,23 @@ async def check_exists_dish(
     return dish
 
 
-async def check_exists_cafes_ids(
-    cafes_ids: list[UUID],
+async def validate_active_cafes_ids(
+    *,
     session: AsyncSession,
-) -> list[Cafe]:
-    """Проверяет, что все кафе из списка существуют и активны.
+    cafes_ids: Iterable[UUID],
+) -> Sequence[Cafe]:
+    """Валидируем список переданных ИД Кафе, возвращаем только активный."""
+    cafes_ids = list(dict.fromkeys(cafes_ids))
 
-    Args:
-        cafes_ids: Список UUID кафе
-        session: Сессия БД
-
-    Returns:
-        Список объектов Cafe
-
-    Raises:
-        BadRequestException: Если список пуст
-        NotFoundException: Если не все кафе существуют
-
-    """
-    # Проверка на пустой список
-    if not cafes_ids:
-        raise BadRequestException(
-            message="Список ID кафе не может быть пустым",
-        )
-
-    # Получаем все существующие и активные кафе
-    result = await session.execute(
-        select(Cafe).where(
-            Cafe.id.in_(cafes_ids),
-            Cafe.active.is_(True),
-        ),
+    cafes = await dishes_crud.get_active_cafes_by_ids(
+        session=session,
+        cafes_ids=cafes_ids,
     )
-    existing_cafes = result.scalars().all()
-    existing_ids = {cafe.id for cafe in existing_cafes}
-
-    # Проверяем, что все запрошенные кафе найдены
-    missing = set(cafes_ids) - existing_ids
+    requested = set(cafes_ids)
+    found = {c.id for c in cafes}
+    missing = requested - found
     if missing:
-        raise NotFoundException(
-            message=f"Кафе с ID {missing} не найдены или неактивны",
-        )
+        raise NotFoundException(f'Не найдены или неактивны кафе '
+                                f'с ID: {missing}')
 
-    return existing_cafes
+    return cafes
