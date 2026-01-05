@@ -9,6 +9,7 @@ from src.booking.schemas import BookingCreate, BookingInfo, BookingUpdate
 from src.booking.services import (
     BookingService,
 )
+from src.common.logging import log_action
 from src.common.responses import (
     create_responses,
     list_responses,
@@ -33,6 +34,7 @@ logger = logging.getLogger('app')
     'Только для авторизованных пользователей.',
     responses=create_responses(BookingInfo),
 )
+@log_action('Создание бронирования')
 async def create_booking(
     booking_data: BookingCreate,
     current_user: User = Depends(require_roles()),
@@ -60,6 +62,7 @@ async def create_booking(
     ),
     responses=list_responses(),
 )
+@log_action('Получение списка бронирований')
 async def get_all_bookings(
     show_all: bool = Query(
         False,
@@ -103,6 +106,7 @@ async def get_all_bookings(
     ' бронирования, менеджеры и администраторы — любые.',
     responses=retrieve_responses(),
 )
+@log_action('Получение бронирования по ID')
 async def get_booking_by_id(
     booking_id: UUID,
     current_user: User = Depends(require_roles()),
@@ -126,6 +130,7 @@ async def get_booking_by_id(
     'для пользователей - только свои.',
     responses=update_responses(BookingInfo),
 )
+@log_action('Частичное обновление бронирования')
 async def patch_booking(
     booking_id: UUID,
     patch_data: BookingUpdate,

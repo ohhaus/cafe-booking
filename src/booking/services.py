@@ -17,11 +17,9 @@ from src.booking.enums import BookingStatus
 from src.booking.models import Booking
 from src.booking.schemas import BookingCreate, BookingUpdate
 from src.booking.validators import (
-    validate_cafe_exists,
-    validate_capacity,
+    validate_booking_create,
+    validate_booking_update,
     validate_patch_cafe_change_requires_tables_slots,
-    validate_table_slot_is_not_booked,
-    validate_tables_slots_exist_and_belong_to_cafe,
 )
 from src.cache.client import RedisCache
 from src.celery.tasks.admin_events import notify_admins_about_event
@@ -81,9 +79,11 @@ class BookingService:
             pairs: list[tuple[UUID, UUID]] = self._pairs_from_tables_slots(
                 booking_data.tables_slots,
             )
-            await self._validate_create(
-                booking_data,
-                pairs,
+            await validate_booking_create(
+                self.session,
+                booking_data=booking_data,
+                pairs=pairs,
+                client_cache=self.client_cache,
             )
 
             booking = await self._create_booking_row(
@@ -175,7 +175,12 @@ class BookingService:
             )
 
             # 5) проверка доступности и вместимости столов
-            await self._validate_update(eff=eff, booking_id=booking.id)
+            await validate_booking_update(
+                session=self.session,
+                eff=eff,
+                booking_id=booking.id,
+                client_cache=self.client_cache,
+            )
 
             # 6) применяем обновления
             self._apply_patch_to_booking(booking, patch_data)
@@ -283,84 +288,6 @@ class BookingService:
     def _pairs_from_tables_slots(tables_slots: Iterable[Any]) -> List[Pair]:
         """Извлекает пары (table_id, slot_id) из списка объектов."""
         return [(ts.table_id, ts.slot_id) for ts in tables_slots]
-
-    async def _validate_create(
-        self,
-        booking_data: BookingCreate,
-        pairs: list[Pair],
-    ) -> None:
-        """Выполняет все проверки при создании бронирования."""
-        # 1. Проверка кафе
-        await validate_cafe_exists(
-            self.session,
-            booking_data.cafe_id,
-            self.client_cache,
-        )
-
-        # 2. Проверка столов и слотов
-        table_ids = await validate_tables_slots_exist_and_belong_to_cafe(
-            self.session,
-            cafe_id=booking_data.cafe_id,
-            tables_slots=pairs,
-            require_non_empty=True,
-            client_cache=self.client_cache,
-        )
-
-        # 3) Проверка вместимости
-        await validate_capacity(
-            self.session,
-            table_ids=table_ids,
-            guest_number=booking_data.guest_number,
-        )
-
-        # 4) Проверка занятости
-        await validate_table_slot_is_not_booked(
-            self.session,
-            tables_slots=pairs,
-            booking_date=booking_data.booking_date,
-            exclude_booking_id=None,
-        )
-
-    async def _validate_update(
-        self,
-        *,
-        eff: EffectivePatch,
-        booking_id: UUID,
-    ) -> None:
-        """Выполняет все проверки при обновлении бронирования."""
-        # Проверка доступности столов
-        if eff.pairs_to_check_taken:
-            await validate_tables_slots_exist_and_belong_to_cafe(
-                session=self.session,
-                cafe_id=eff.cafe_id,
-                tables_slots=eff.pairs_to_check_taken,
-                require_non_empty=True,
-                client_cache=self.client_cache,
-            )
-            await validate_table_slot_is_not_booked(
-                session=self.session,
-                tables_slots=eff.pairs_to_check_taken,
-                booking_date=eff.booking_date,
-                exclude_booking_id=booking_id,
-            )
-
-        # Проверка вместимости
-        need_capacity_check = (
-            eff.guest_number_changed or eff.replace_tables_slots
-        )
-        if need_capacity_check and eff.effective_pairs:
-            table_ids = await validate_tables_slots_exist_and_belong_to_cafe(
-                session=self.session,
-                cafe_id=eff.cafe_id,
-                tables_slots=eff.effective_pairs,
-                require_non_empty=False,
-                client_cache=self.client_cache,
-            )
-            await validate_capacity(
-                session=self.session,
-                table_ids=table_ids,
-                guest_number=eff.guest_number,
-            )
 
     async def _create_booking_row(
         self,
