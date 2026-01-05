@@ -13,7 +13,6 @@ from src.config import (
     MAX_DESCRIPTION_LENGTH,
     MAX_NAME_LENGTH,
     MIN_DESCRIPTION_LENGTH,
-    UUID_LENGTH,
 )
 
 
@@ -48,7 +47,7 @@ class DishUpdate(BaseModel):
         max_length=MAX_DESCRIPTION_LENGTH,
         min_length=MIN_DESCRIPTION_LENGTH,
     )
-    photo_id: Optional[UUID] = Field(None, max_length=UUID_LENGTH)
+    photo_id: Optional[UUID] = None
     price: Optional[Decimal] = Field(
         None,
         ge=DISH_MIN_PRICE,

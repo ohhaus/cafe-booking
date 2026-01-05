@@ -112,6 +112,31 @@ async def get_dish_by_id(
 
 
 @router.patch(
+    '/test/{dish_id}',
+    response_model=DishInfo,
+    summary='Обновление информации о блюде по его ID',
+    description='Обновление информации о блюде по его ID. '
+    'Только для администраторов и менеджеров.',
+    responses=retrieve_responses(),
+)
+async def update_dish_new(
+    dish_id: UUID,
+    dish_update: DishUpdate,
+    current_user: User = Depends(
+        require_roles([UserRole.MANAGER, UserRole.ADMIN]),
+    ),
+    session: AsyncSession = Depends(get_async_session),
+) -> DishInfo:
+    """Обновление информации о блюде по его ID."""
+    return await dishes_service.update_dish_service(
+        session=session,
+        dish_id=dish_id,
+        dish_update=dish_update,
+        current_user=current_user,
+    )
+
+
+@router.patch(
     '/{dish_id}',
     response_model=DishInfo,
     summary='Обновление информации о блюде по его ID',

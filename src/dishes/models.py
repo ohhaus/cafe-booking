@@ -1,7 +1,6 @@
 # src/dishes/models.py
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING
-import uuid
 
 from sqlalchemy import Column, ForeignKey, Numeric, String, Table
 from sqlalchemy.dialects.postgresql import UUID
@@ -9,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.config import MAX_DESCRIPTION_LENGTH, MAX_NAME_LENGTH
 from src.database import Base
+from src.media.models import ImageMedia
 
 
 if TYPE_CHECKING:
@@ -51,8 +51,10 @@ class Dish(Base):
         String(MAX_DESCRIPTION_LENGTH),
         nullable=True,
     )
-    photo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    photo_id: Mapped[Optional[UUID]] = mapped_column(
         UUID(as_uuid=True),
+        ForeignKey('image_media.id'),
+        unique=True,
         nullable=True,
     )
     price: Mapped[Decimal] = mapped_column(
@@ -65,4 +67,9 @@ class Dish(Base):
         'Cafe',
         secondary=dish_cafe,
         back_populates='dishes',
+    )
+    photo: Mapped[Optional['ImageMedia']] = relationship(
+        'ImageMedia',
+        lazy='selectin',
+        foreign_keys={photo_id},
     )

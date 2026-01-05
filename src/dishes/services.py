@@ -123,6 +123,72 @@ class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
             )
             raise
 
+    async def update_dish_service(
+        self,
+        *,
+        session: AsyncSession,
+        dish_id: UUID,
+        dish_update: DishUpdate,
+        current_user: User,
+    ):
+        user_id = str(current_user.id)
+
+        logger.info(
+            'Пользователь %s инициировал обновление блюда %s',
+            user_id,
+            str(dish_id),
+            extra={'user_id': user_id, 'dish_id': str(dish_id)},
+        )
+
+        dish = await dishes_crud.get_by_id_with_cafes(
+            session=session,
+            dish_id=dish_id,
+        )
+        if dish is None:
+            logger.warning(
+                'Блюдо не найдено',
+                extra={'user_id': user_id, 'dish_id': str(dish_id)},
+            )
+            raise NotFoundException(f'Блюдо с ID: {dish_id} не найдено')
+
+        data = dish_update.model_dump(exclude_unset=True)
+
+        try:
+            dish = await dishes_crud.update_dish(
+                session=session,
+                dish=dish,
+                data=data,
+            )
+        except IntegrityError as e:
+            await session.rollback()
+            cause = unwrap_sa_integrity_error(e)
+            if isinstance(cause, UniqueViolationError):
+                if getattr(cause, 'constraint_name', None) == 'dish_name_key':
+                    name = data.get('name')
+                    raise ValidationErrorException(
+                        f"Блюдо с именем '{name}' уже существует"
+                    ) from e
+            raise
+        except SQLAlchemyError:
+            await session.rollback()
+            logger.exception(
+                'SQLAlchemy ошибка при обновлении блюда',
+                extra={'user_id': user_id,
+                       'dish_id': str(dish_id)},
+            )
+            raise
+        except Exception:
+            # реально неожиданное
+            await session.rollback()
+            logger.exception(
+                'Обновление блюда упало с необработанной ошибкой',
+                extra={'user_id': user_id,
+                       'dish_id': str(dish_id)},
+            )
+            raise
+
+        return dish
+
     async def update_dish(
         self,
         session: AsyncSession,
@@ -228,9 +294,9 @@ async def get_dishes(
         'Найдено блюд: %d (show_all=%s, cafe_id=%s)',
         found_count, show_all, cafe_id,
         extra={
-            "found_count": found_count,
-            "show_all": show_all,
-            "cafe_id": str(cafe_id) if cafe_id else None,
+            'found_count': found_count,
+            'show_all': show_all,
+            'cafe_id': str(cafe_id) if cafe_id else None,
         },
     )
 
@@ -265,7 +331,7 @@ async def get_dish_by_dish_id(
     session: AsyncSession,
     dish_id: UUID,
     current_user: User,
-) -> DishInfo:
+) -> Dish:
     """Получает Блюдо по ID с учётом прав доступа."""
     logger.info(
         'Пользователь c ID: %s запросил информацию о блюде с ID: %s',
