@@ -1,5 +1,5 @@
 import logging
-from typing import Type, TypeVar
+from typing import Any, Sequence, Type, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel, ValidationError
@@ -91,6 +91,25 @@ async def cache_set(
         logger.warning('CACHE SKIP %s (ttl=%s)', key, ttl)
         return
     await cache.set(key, payload, ttl=ttl)
+
+
+def dump_one(
+    schema: Type[T],
+    obj: Any,
+) -> dict:
+    """Единая сериализация ORM/Pydantic -> dict."""
+    return schema.model_validate(obj).model_dump(
+        mode='json',
+        by_alias=True,
+    )
+
+
+def dump_list(
+    schema: Type[T],
+    objs: Sequence[Any],
+) -> list[dict]:
+    """Сериализация списка объектов."""
+    return [dump_one(schema, obj) for obj in objs]
 
 
 async def invalidate_slots_cache(
