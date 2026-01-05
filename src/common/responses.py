@@ -284,3 +284,39 @@ def user_me_patch_responses() -> Responses:
             HTTPStatus.UNPROCESSABLE_ENTITY,
         ),
     )
+
+
+def media_get_by_id_responses() -> Responses:
+    """Пресет `responses` для получения медиафайла по ID.
+
+    Включает:
+    - 200 OK,
+    - 404 Not Found,
+    - 422 Unprocessable Entity.
+    """
+    return make_responses(
+        errors=(
+            HTTPStatus.NOT_FOUND,
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+        ),
+    )
+
+
+def media_post_responses(model: Type[BaseModel]) -> Responses:
+    """Пресет `responses` для загрузки медиафайла.
+
+    Включает:
+    - 200 OK с моделью ответа,
+    - 400 Bad Request,
+    - 401 Unauthorized,
+    - 403 Forbidden,
+    - 422 Unprocessable Entity.
+    """
+    return make_responses(
+        errors=(
+            HTTPStatus.BAD_REQUEST,
+            HTTPStatus.UNAUTHORIZED,
+            HTTPStatus.FORBIDDEN,
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+        ),
+    )
