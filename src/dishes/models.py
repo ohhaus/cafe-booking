@@ -53,8 +53,7 @@ class Dish(Base):
     photo_id: Mapped[Optional[UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey('image_media.id'),
-        unique=True,
-        nullable=True,
+        nullable=False,
     )
     price: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
