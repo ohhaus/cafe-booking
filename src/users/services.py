@@ -1,6 +1,5 @@
 from typing import Any
 
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,7 +35,6 @@ class UserService(DatabaseService[User, UserCreate, UserUpdate]):
         session: AsyncSession,
     ) -> User:
         """Обновляет существующий объект новыми данными."""
-        obj_data = jsonable_encoder(db_obj)
         update_data = obj_in.model_dump(exclude_unset=True, exclude_none=True)
 
         if 'is_active' in update_data:
@@ -46,9 +44,9 @@ class UserService(DatabaseService[User, UserCreate, UserUpdate]):
             update_data['hashed_password'] = get_password_hash(
                 update_data.pop('password'),
             )
-        for field in obj_data:
-            if field in update_data:
-                setattr(db_obj, field, update_data[field])
+        for field, value in update_data.items():
+            setattr(db_obj, field, update_data[field])
+
         session.add(db_obj)
         await session.commit()
         await session.refresh(db_obj)
