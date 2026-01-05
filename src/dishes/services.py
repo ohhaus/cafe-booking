@@ -130,7 +130,11 @@ class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
         dish_id: UUID,
         dish_update: DishUpdate,
         current_user: User,
-    ):
+    ) -> Dish:
+        """Обновление информации о блюде по его ID.
+
+        Если указаны cafes_id, обновляет связь блюда с кафе.
+        """
         user_id = str(current_user.id)
 
         logger.info(
@@ -152,8 +156,50 @@ class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
             raise NotFoundException(f'Блюдо с ID: {dish_id} не найдено')
 
         data = dish_update.model_dump(exclude_unset=True)
+        cafes_ids = data.pop('cafes_id', None)
+
+        if cafes_ids:
+            cafes_ids = list(dict.fromkeys(cafes_ids))
 
         try:
+            if cafes_ids:
+                try:
+                    cafes = await validate_active_cafes_ids(
+                        session=session,
+                        cafes_ids=cafes_ids,
+                    )
+                except NotFoundException:
+                    logger.warning(
+                        'Часть ID Кафе не найдено или не активны '
+                        'при обновлении блюда',
+                        extra={
+                            'user_id': user_id,
+                            'dish_id': str(dish_id),
+                            'missing_cafes_ids': [
+                                str(x) for x in cafes_ids
+                                ],
+                        },
+                    )
+                    await session.rollback()
+                    raise
+                dish.cafes = cafes
+            else:
+                # пришёл пустой список — очищаем связь
+                logger.warning(
+                        'Нельзя обновить блюдо %s с пустым списком кафе',
+                        str(dish_id),
+                        extra={
+                            'user_id': user_id,
+                            'dish_id': str(dish_id),
+                            'missing_cafes_ids': [
+                                str(x) for x in cafes_ids
+                                ],
+                        },
+                    )
+                await session.rollback()
+                raise ValidationErrorException(
+                    'Список кафе для блюда не может быть пустым',
+                )
             dish = await dishes_crud.update_dish(
                 session=session,
                 dish=dish,
@@ -166,7 +212,7 @@ class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
                 if getattr(cause, 'constraint_name', None) == 'dish_name_key':
                     name = data.get('name')
                     raise ValidationErrorException(
-                        f"Блюдо с именем '{name}' уже существует"
+                        f"Блюдо с именем '{name}' уже существует",
                     ) from e
             raise
         except SQLAlchemyError:
@@ -188,35 +234,6 @@ class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
             raise
 
         return dish
-
-    async def update_dish(
-        self,
-        session: AsyncSession,
-        db_obj: Dish,
-        obj_in: DishUpdate,
-    ) -> Dish:
-        """Обновление блюда."""
-        update_data = obj_in.model_dump(exclude_unset=True)
-        cafes_id = update_data.pop('cafes_id', None)
-
-        cafes = await self.get_related_objects(
-            session=session,
-            field_name='dishes',
-            ids=cafes_id,
-            model=Cafe,
-            required=True,
-        )
-
-        db_obj = await self.update(
-            db_obj=db_obj,
-            obj_in=obj_in,
-            session=session,
-            related={'cafes': cafes},
-        )
-
-        await session.commit()
-        await session.refresh(db_obj)
-        return db_obj
 
     async def get_cafes_for_dish(
             self,

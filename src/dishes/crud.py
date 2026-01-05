@@ -39,6 +39,7 @@ class DishesCRUD(DatabaseService[Dish, DishCreate, DishUpdate]):
         session: AsyncSession,
         dish_id: UUID,
     ) -> Dish | None:
+        """Получает блюдо по ID вместе с связанными кафе."""
         stmt = (
             select(Dish)
             .where(Dish.id == dish_id)
@@ -54,11 +55,12 @@ class DishesCRUD(DatabaseService[Dish, DishCreate, DishUpdate]):
         dish: Dish,
         data: dict[str, Any],
     ) -> Dish:
+        """Обновляет блюдо и его связи с кафе, если указаны cafes_id."""
         for key, value in data.items():
             setattr(dish, key, value)
 
         await session.commit()
-        await session.refresh(dish)
+        await session.refresh(dish, attribute_names=['cafes'])
         return dish
 
 
