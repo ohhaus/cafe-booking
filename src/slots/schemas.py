@@ -48,7 +48,7 @@ class TimeSlotBase(BaseModel):
 class TimeSlotCreate(TimeSlotBase):
     """Схема создания слота."""
 
-    ...
+    pass
 
 
 class TimeSlotInfo(TimeSlotBase):

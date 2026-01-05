@@ -41,7 +41,7 @@ class TableBase(BaseModel):
 class TableCreate(TableBase):
     """Схема создания стола."""
 
-    ...
+    pass
 
 
 class TableInfo(TableBase):

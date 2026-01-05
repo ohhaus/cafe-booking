@@ -110,7 +110,10 @@ async def ensure_manager_can_cud_cafe(
         cafe_id=cafe_id,
         cache=cache,
     ):
-        raise ForbiddenException('Недостаточно прав ...')
+        raise ForbiddenException(
+            'Недостаточно прав для изменения этого кафе. '
+            'Вы не являетесь сотрудником этого кафе.',
+        )
 
 
 async def sync_cafe_managers(

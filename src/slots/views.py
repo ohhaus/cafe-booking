@@ -17,6 +17,8 @@ from src.cafes.cafes_help_caches import (
     cache_get_list,
     cache_get_one,
     cache_set,
+    dump_list,
+    dump_one,
     invalidate_slots_cache,
 )
 from src.cafes.service import ensure_manager_can_cud_cafe, is_admin_or_manager
@@ -68,7 +70,7 @@ async def get_time_slots(
     current_user: User = Depends(require_roles(allow_guest=False)),
     db: AsyncSession = Depends(get_async_session),
     cache: RedisCache = Depends(get_cache),
-) -> list[TimeSlotWithCafeInfo]:
+) -> list[dict]:
     """Получение списка доступных для бронирования временных слотов в кафе.
 
     Для администраторов и менеджеров - все слоты (с возможностью выбора),
@@ -77,40 +79,21 @@ async def get_time_slots(
     is_privileged = is_admin_or_manager(current_user)
     show_all_effective = show_all if is_privileged else False
 
+    await ensure_cafe_exists_cached(
+        db,
+        cafe_id,
+        cache,
+        require_active=not show_all_effective,
+    )
+
     key = key_cafe_slots(cafe_id, show_all=show_all_effective)
     ttl = settings.cache.TTL_CAFE_SLOTS
 
     cached = await cache_get_list(cache, key, TimeSlotWithCafeInfo)
     if cached is not None:
-        if not show_all_effective:
-            meta = await ensure_cafe_exists_cached(db, cafe_id, cache)
-            if meta.get('active') is False:
-                await cache.delete(key)
-                await invalidate_slots_cache(cache, cafe_id)
-                logger.info(
-                    'Cafe inactive, dropping slots cache (cafe_id=%s, key=%s)',
-                    cafe_id,
-                    key,
-                    extra={
-                        'user_id': str(current_user.id),
-                        'user_role': getattr(
-                            current_user.role,
-                            'value',
-                            str(current_user.role),
-                        ),
-                        'cafe_id': str(cafe_id),
-                        'show_all': show_all_effective,
-                        'cache_key': key,
-                        'reason': 'cafe_inactive',
-                    },
-                )
-                raise NotFoundException('Кафе не найдено.')
+        if len(cached) == 0:
+            raise NotFoundException('В этом кафе нет временных слотов.')
         return cached
-
-    meta = await ensure_cafe_exists_cached(db, cafe_id, cache)
-
-    if not show_all_effective and meta.get('active') is False:
-        raise NotFoundException('Кафе не найдено.')
 
     slots = await slot_crud.list_slots(
         db,
@@ -118,6 +101,10 @@ async def get_time_slots(
         cafe_id=cafe_id,
         show_all=show_all_effective,
     )
+
+    if not slots:
+        await cache_set(cache, key, [], ttl)
+        raise NotFoundException('В этом кафе нет временных слотов.')
 
     logger.info(
         'GET /cafes/%s/time_slots: %d slots (show_all=%s)',
@@ -137,13 +124,7 @@ async def get_time_slots(
         },
     )
 
-    payload = [
-        TimeSlotWithCafeInfo.model_validate(slot).model_dump(
-            mode='json',
-            by_alias=True,
-        )
-        for slot in slots
-    ]
+    payload = dump_list(TimeSlotWithCafeInfo, slots)
     await cache_set(cache, key, payload, ttl)
 
     return payload
@@ -164,7 +145,7 @@ async def create_time_slot(
     ),
     db: AsyncSession = Depends(get_async_session),
     cache: RedisCache = Depends(get_cache),
-) -> TimeSlotWithCafeInfo:
+) -> dict:
     """Создает нового временного слота в кафе.
 
     Только для администраторов и менеджеров.
@@ -212,10 +193,7 @@ async def create_time_slot(
         )
         await invalidate_slots_cache(cache, cafe_id)
 
-        return TimeSlotWithCafeInfo.model_validate(slot).model_dump(
-            mode='json',
-            by_alias=True,
-        )
+        return dump_one(TimeSlotWithCafeInfo, slot)
 
     except (ValueError,) as e:
         await db.rollback()
@@ -251,27 +229,38 @@ async def create_time_slot(
 async def get_time_slot_by_id(
     cafe_id: UUID,
     slot_id: UUID,
+    show_all: bool = Query(
+        False,
+        title='Показывать неактивные слоты?',
+        description=(
+            'Только для администраторов и менеджеров. '
+            'Если false — только активные.',
+        ),
+    ),
     current_user: User = Depends(require_roles(allow_guest=False)),
     db: AsyncSession = Depends(get_async_session),
     cache: RedisCache = Depends(get_cache),
-) -> TimeSlotWithCafeInfo:
+) -> dict:
     """Получение информации о временном слоте в кафе по его ID.
 
     Для администраторов и менеджеров - видят активные и не активные слоты,
     для пользователей - только активные.
     """
-    show_all_effective = is_admin_or_manager(current_user)
+    is_privileged = is_admin_or_manager(current_user)
+    show_all_effective = show_all if is_privileged else False
+
+    await ensure_cafe_exists_cached(
+        db,
+        cafe_id,
+        cache,
+        require_active=not show_all_effective,
+    )
 
     key = key_cafe_slot(cafe_id, slot_id, show_all=show_all_effective)
     ttl = settings.cache.TTL_CAFE_SLOT
 
     cached = await cache_get_one(cache, key, TimeSlotWithCafeInfo)
     if cached is not None:
-        if not show_all_effective:
-            meta = await ensure_cafe_exists_cached(db, cafe_id, cache)
-            if meta.get('active') is False:
-                await invalidate_slots_cache(cache, cafe_id)
-                raise NotFoundException('Кафе не найдено.')
         return cached
 
     slot = await slot_crud.get_slot(
@@ -279,14 +268,12 @@ async def get_time_slot_by_id(
         current_user=current_user,
         cafe_id=cafe_id,
         slot_id=slot_id,
+        show_all=show_all_effective,
     )
     if not slot:
         raise NotFoundException('Слот не найден.')
 
-    payload = TimeSlotWithCafeInfo.model_validate(slot).model_dump(
-        mode='json',
-        by_alias=True,
-    )
+    payload = dump_one(TimeSlotWithCafeInfo, slot)
     await cache_set(cache, key, payload, ttl)
     return payload
 
@@ -306,7 +293,7 @@ async def update_time_slot(
     ),
     db: AsyncSession = Depends(get_async_session),
     cache: RedisCache = Depends(get_cache),
-) -> TimeSlotWithCafeInfo:
+) -> dict:
     """Обновление информации о временом слоте в кафе по его ID.
 
     Только для администраторов и менеджеров.
@@ -351,10 +338,7 @@ async def update_time_slot(
             },
         )
 
-        return TimeSlotWithCafeInfo.model_validate(slot).model_dump(
-            mode='json',
-            by_alias=True,
-        )
+        return dump_one(TimeSlotWithCafeInfo, slot)
 
     except (ValueError,) as e:
         await db.rollback()

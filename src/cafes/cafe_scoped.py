@@ -112,9 +112,13 @@ async def ensure_cafe_exists_cached(
     db: AsyncSession,
     cafe_id: UUID,
     cache: RedisCache,
+    *,
+    require_active: bool = False,
 ) -> dict:
     """Проверка на наличие кафе."""
     meta = await get_cafe_meta_cached(db, cafe_id, cache)
-    if not meta['exists']:
+    if not meta.get('exists', False):
+        raise NotFoundException('Кафе не найдено.')
+    if require_active and not meta.get('active', False):
         raise NotFoundException('Кафе не найдено.')
     return meta

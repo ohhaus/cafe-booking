@@ -60,6 +60,7 @@ class SlotService(DatabaseService[Slot, TimeSlotCreateDB, TimeSlotUpdate]):
         current_user: User,
         cafe_id: UUID,
         slot_id: UUID,
+        show_all: bool = False,
     ) -> Optional[Slot]:
         """Возвращает слот по UUID в рамках кафе с учётом правил видимости.
 
@@ -73,7 +74,7 @@ class SlotService(DatabaseService[Slot, TimeSlotCreateDB, TimeSlotUpdate]):
             Slot,
             stmt,
             current_user,
-            show_all=True,
+            show_all=show_all,
         )
 
         result = await session.execute(stmt)
@@ -140,6 +141,7 @@ class SlotService(DatabaseService[Slot, TimeSlotCreateDB, TimeSlotUpdate]):
             current_user=current_user,
             cafe_id=cafe_id,
             slot_id=slot_id,
+            show_all=True,
         )
         if not slot:
             return None

@@ -11,6 +11,8 @@ from src.cafes.cafes_help_caches import (
     cache_get_list,
     cache_get_one,
     cache_set,
+    dump_list,
+    dump_one,
     invalidate_cafes_cache,
 )
 from src.cafes.crud import cafe_crud
@@ -52,7 +54,7 @@ async def create_cafe(
     ),
     db: AsyncSession = Depends(get_async_session),
     cache: RedisCache = Depends(get_cache),
-) -> CafeInfo:
+) -> dict:
     """Создает новое кафе. Только для администраторов."""
     try:
         cafe = await cafe_crud.create_cafe(db, cafe_data)
@@ -62,15 +64,12 @@ async def create_cafe(
         await invalidate_cafes_cache(cache, cafe_id=cafe.id)
 
         logger.info(
-            'Кафе %s (%s) успешно создано',
+            'Кафе %s (%s) успешно создано.',
             cafe.id,
             cafe.name,
             extra={'user_id': str(current_user.id), 'cafe_id': str(cafe.id)},
         )
-        return CafeInfo.model_validate(cafe).model_dump(
-            mode='json',
-            by_alias=True,
-        )
+        return dump_one(CafeInfo, cafe)
 
     except ValueError as e:
         await db.rollback()
@@ -108,7 +107,7 @@ async def get_all_cafes(
     current_user: User = Depends(require_roles(allow_guest=False)),
     db: AsyncSession = Depends(get_async_session),
     cache: RedisCache = Depends(get_cache),
-) -> list[CafeInfo]:
+) -> list[dict]:
     """Получение списка кафе.
 
     Для администраторов и менеджеров - все кафе (с возможностью выбора),
@@ -129,13 +128,7 @@ async def get_all_cafes(
         show_all_effective=show_all_effective,
     )
 
-    payload = [
-        CafeInfo.model_validate(cafe).model_dump(
-            mode='json',
-            by_alias=True,
-        )
-        for cafe in cafes
-    ]
+    payload = dump_list(CafeInfo, cafes)
     await cache_set(cache, key, payload, ttl)
 
     logger.info(
@@ -157,16 +150,25 @@ async def get_all_cafes(
 )
 async def get_cafe_by_id(
     cafe_id: UUID,
+    show_all: bool = Query(
+        False,
+        title='Показывать неактивные кафе?',
+        description=(
+            'Только для администраторов и менеджеров. '
+            'Если false — только активные.',
+        ),
+    ),
     current_user: User = Depends(require_roles(allow_guest=False)),
     db: AsyncSession = Depends(get_async_session),
     cache: RedisCache = Depends(get_cache),
-) -> CafeInfo:
+) -> dict:
     """Получение информации о кафе по его ID.
 
     Для администраторов и менеджеров - все кафе,
     для пользователей - только активные.
     """
-    show_all_effective = is_admin_or_manager(current_user)
+    is_privileged = is_admin_or_manager(current_user)
+    show_all_effective = show_all if is_privileged else False
 
     key = key_cafe(cafe_id, show_all=show_all_effective)
     ttl = settings.cache.TTL_CAFE_BY_ID
@@ -181,12 +183,9 @@ async def get_cafe_by_id(
         show_all_effective=show_all_effective,
     )
     if not cafe:
-        raise NotFoundException('Кафе не найдено')
+        raise NotFoundException('Кафе не найдено.')
 
-    payload = CafeInfo.model_validate(cafe).model_dump(
-        mode='json',
-        by_alias=True,
-    )
+    payload = dump_one(CafeInfo, cafe)
     await cache_set(cache, key, payload, ttl)
     return payload
 
@@ -205,7 +204,7 @@ async def update_cafe(
     ),
     db: AsyncSession = Depends(get_async_session),
     cache: RedisCache = Depends(get_cache),
-) -> CafeInfo:
+) -> dict:
     """Обновление информации о кафе по его ID.
 
     Только для администраторов и менеджеров.
@@ -216,7 +215,7 @@ async def update_cafe(
         show_all_effective=True,
     )
     if cafe is None:
-        raise NotFoundException('Кафе не найдено')
+        raise NotFoundException('Кафе не найдено.')
 
     await ensure_manager_can_cud_cafe(
         db,
@@ -239,10 +238,7 @@ async def update_cafe(
             extra={'user_id': str(current_user.id), 'cafe_id': str(cafe_id)},
         )
 
-        return CafeInfo.model_validate(updated).model_dump(
-            mode='json',
-            by_alias=True,
-        )
+        return dump_one(CafeInfo, updated)
 
     except ValueError as e:
         await db.rollback()

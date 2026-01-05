@@ -73,12 +73,15 @@ class TableService(DatabaseService[Table, TableCreateDB, TableUpdate]):
         current_user: User,
         cafe_id: UUID,
         table_id: UUID,
+        show_all: bool = False,
     ) -> Optional[Table]:
         """Возвращает стол по UUID в рамках кафе с учётом правил видимости.
 
-        Для обычного пользователя применяется фильтрация по активности стола
-        и активности кафе. Для staff-ролей возвращается запись независимо от
-        активности (если запись существует в рамках cafe_id).
+        - Staff:
+            * show_all=True  -> возвращает активные и неактивные
+            * show_all=False -> только активные
+        - Обычный пользователь:
+            * только активные и только если кафе активно.
         """
         stmt = cafe_scoped_stmt(Table, cafe_id)
         stmt = with_id(Table, stmt, table_id)
@@ -86,7 +89,7 @@ class TableService(DatabaseService[Table, TableCreateDB, TableUpdate]):
             Table,
             stmt,
             current_user,
-            show_all=True,
+            show_all=show_all,
         )
 
         result = await session.execute(stmt)
@@ -115,7 +118,7 @@ class TableService(DatabaseService[Table, TableCreateDB, TableUpdate]):
         if not cafe_checked:
             cafe = await get_cafe_or_none(session, cafe_id)
             if not cafe:
-                raise LookupError('Кафе не найдено')
+                raise LookupError('Кафе не найдено.')
 
         table_db = TableCreateDB(cafe_id=cafe_id, **data.model_dump())
 
@@ -151,6 +154,7 @@ class TableService(DatabaseService[Table, TableCreateDB, TableUpdate]):
             current_user=current_user,
             cafe_id=cafe_id,
             table_id=table_id,
+            show_all=True,
         )
 
         if not table:
