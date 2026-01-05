@@ -725,6 +725,82 @@
 			]
 		},
 		{
+			"name": "dishes",
+			"item": [
+				{
+					"name": "create_dish // Manager",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const responseData = pm.response.json();",
+									"pm.test(\"Статус-код ответа должен быть 201\", function () {",
+									"    pm.expect(pm.response.code).to.eql(201);",
+									"});",
+									"if (pm.response.code === 201) {",
+									"    const id = responseData.id;",
+									"    if (id) pm.collectionVariables.set(\"dish_1_ID\", id);",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{"key": "token", "value": "{{managerUserToken}}", "type": "string"}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"name\": \"Тестовое блюдо\",\r\n  \"description\": \"Описание блюда\",\r\n  \"photo_id\": \"{{image_id}}\",\r\n  \"price\": 9.90,\r\n  \"cafes_id\": [\"{{cafe_1_ID}}\"]\r\n}",
+							"options": {"raw": {"language": "json"}}
+						},
+						"url": {"raw": "{{baseURL}}/dishes", "host": ["{{baseURL}}"], "path": ["dishes"]}
+					},
+					"response": []
+				},
+				{
+					"name": "get_dishes // Admin",
+					"request": {
+						"auth": {"type": "bearer", "bearer": [{"key": "token","value": "{{adminUserToken}}","type": "string"}]},
+						"method": "GET",
+						"header": [],
+						"url": {"raw": "{{baseURL}}/dishes?show_all=true", "host": ["{{baseURL}}"], "path": ["dishes"], "query": [{"key":"show_all","value":"true"}]}
+					},
+					"response": []
+				},
+				{
+					"name": "get_dish_by_id // Normal",
+					"request": {
+						"auth": {"type": "bearer", "bearer": [{"key": "token","value": "{{normalUserToken}}","type": "string"}]},
+						"method": "GET",
+						"header": [],
+						"url": {"raw": "{{baseURL}}/dishes/{{dish_1_ID}}", "host": ["{{baseURL}}"], "path": ["dishes","{{dish_1_ID}}"]}
+					},
+					"response": []
+				},
+				{
+					"name": "update_dish // Manager",
+					"request": {
+						"auth": {"type": "bearer", "bearer": [{"key": "token","value": "{{managerUserToken}}","type": "string"}]},
+						"method": "PATCH",
+						"header": [],
+						"body": {"mode":"raw","raw": "{\r\n  \"price\": 12.50,\r\n  \"description\": \"Обновленное описание\"\r\n}","options":{"raw":{"language":"json"}}},
+						"url": {"raw": "{{baseURL}}/dishes/{{dish_1_ID}}", "host": ["{{baseURL}}"], "path": ["dishes","{{dish_1_ID}}"]}
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "Tables",
 			"item": [
 				{
