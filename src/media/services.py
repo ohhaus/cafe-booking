@@ -4,11 +4,12 @@ from pathlib import Path
 import uuid
 
 from PIL import Image
-from fastapi import HTTPException, UploadFile, status
+from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.cache.client import cache
 from src.cache.keys import key_media
+from src.common.exceptions import NotFoundException
 from src.config import MEDIA_DIR, settings
 from src.media.crud import create_image, get_image_by_id
 from src.media.models import ImageMedia
@@ -68,10 +69,7 @@ async def get_image_for_download(
         # Валидируем и возвращаем через схему
         schema = ImageMediaSchema(**cached_data)
         if not schema.active:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail='Изображение не найдено.',
-            )
+            raise NotFoundException('Изображение не найдено.')
         return schema
 
     image = await get_image_by_id(session, image_id)
@@ -82,10 +80,7 @@ async def get_image_for_download(
             image_id,
             extra={'media_id': str(image_id)},
         )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail='Изображение не найдено.',
-        )
+        raise NotFoundException('Изображение не найдено.')
 
     schema = ImageMediaSchema.model_validate(image)
     await cache.set(

@@ -1,13 +1,23 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class ImageCreateResponse(BaseModel):
+class MediaInfo(BaseModel):
     """Схема ответа при создании записи image."""
 
     media_id: UUID
+
+
+class MediaData(BaseModel):
+    """Загружаемый файл."""
+
+    file: str = Field(
+        ...,
+        description="Загружаемый файл",
+        json_schema_extra={"format": "binary"},
+    )
 
 
 class ImageMediaSchema(BaseModel):
