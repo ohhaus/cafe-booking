@@ -154,6 +154,7 @@ class BookingService:
                     booking,
                     attribute_names=['booking_table_slots', 'user', 'cafe'],
                 )
+                # Постановка задачи на уведомление
                 self._enqueue_admin_event_notification(
                     booking_id=booking.id,
                     event_type='updated',
@@ -176,10 +177,10 @@ class BookingService:
             # 5) проверка доступности и вместимости столов
             await self._validate_update(eff=eff, booking_id=booking.id)
 
-            # 4) применяем обновления
+            # 6) применяем обновления
             self._apply_patch_to_booking(booking, patch_data)
 
-            # 5) синхронизация связей, если tables_slots присутствует в запросе
+            # 7) синхронизация связей, если tables_slots присутствует в запросе
             if eff.incoming_pairs is not None:
                 await self._sync_booking_table_slots(
                     booking=booking,
@@ -193,7 +194,7 @@ class BookingService:
                 booking,
                 attribute_names=['booking_table_slots', 'user', 'cafe'],
             )
-            # 6) Постановка задачи на уведомление
+            # 8) Постановка задачи на уведомление
             self._enqueue_admin_event_notification(
                 booking_id=booking.id,
                 event_type='updated',
@@ -616,7 +617,7 @@ class BookingService:
             task_extra.update(extra)
 
         try:
-            notify_result = notify_admins_about_event.delay(
+            notify_admins_about_event.delay(
                 str(booking_id),
                 event_type,
                 {'message': message},
@@ -630,5 +631,5 @@ class BookingService:
         else:
             logger.info(
                 'Задача почтового уведомления поставлена в очередь',
-                extra={'task_id': notify_result.id, **task_extra},
+                extra=task_extra,
             )
