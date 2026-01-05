@@ -1,6 +1,6 @@
-import uuid
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING
+import uuid
 
 from sqlalchemy import Column, ForeignKey, Numeric, String, Table
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
