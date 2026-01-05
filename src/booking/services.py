@@ -7,6 +7,7 @@ import logging
 from typing import Any, Iterable, List, Optional, Tuple
 from uuid import UUID
 
+from kombu.exceptions import OperationalError
 from sqlalchemy import desc
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +24,7 @@ from src.booking.validators import (
     validate_tables_slots_exist_and_belong_to_cafe,
 )
 from src.cache.client import RedisCache
+from src.celery.tasks.admin_events import notify_admins_about_event
 from src.common.exceptions import (
     BadRequestException,
     ForbiddenException,
@@ -107,6 +109,13 @@ class BookingService:
                 booking.id,
                 extra={'user_id': str(current_user_id)},
             )
+            # Постановка задачи на уведомление
+            self._enqueue_admin_event_notification(
+                booking_id=booking.id,
+                event_type='created',
+                message='Создана новая бронь',
+            )
+
             return booking
 
         except SQLAlchemyError:
@@ -140,11 +149,16 @@ class BookingService:
             # 2) Обработка отмены или восстановления брони —> выходим
             if self._is_cancel_or_restore_transition(booking, patch_data):
                 await self._apply_cancel_or_restore(booking, patch_data)
+                await self.session.commit()
                 await self.session.refresh(
                     booking,
                     attribute_names=['booking_table_slots', 'user', 'cafe'],
                 )
-                await self.session.commit()
+                self._enqueue_admin_event_notification(
+                    booking_id=booking.id,
+                    event_type='updated',
+                    message='Бронь обновлена',
+                )
                 return booking
 
             # 3) запрет смены cafe без tables_slots
@@ -179,6 +193,13 @@ class BookingService:
                 booking,
                 attribute_names=['booking_table_slots', 'user', 'cafe'],
             )
+            # 6) Постановка задачи на уведомление
+            self._enqueue_admin_event_notification(
+                booking_id=booking.id,
+                event_type='updated',
+                message='Бронь обновлена',
+            )
+
             return booking
 
         except SQLAlchemyError:
@@ -472,7 +493,7 @@ class BookingService:
         )
 
         existing_pairs: dict[Pair, list] = defaultdict(list)
-
+        new_pairs_set: set[Pair] = set(new_pairs)
         if not is_create:
             # Собираем все существующие пары (активные и неактивные)
             for bts in booking.booking_table_slots:
@@ -481,7 +502,7 @@ class BookingService:
             #    - если пара нужна -> актуализируем дату, активируем
             #    - если пара не нужна -> деактивируем
             for pair, rows in existing_pairs.items():
-                keep = pair in new_pairs
+                keep = pair in new_pairs_set
                 for bts in rows:
                     if keep:
                         bts.booking_date = booking_date
@@ -491,7 +512,8 @@ class BookingService:
                         if bts.active:
                             bts.active = False
         # Создаём недостающие пары
-        for table_id, slot_id in new_pairs - existing_pairs.keys():
+        existing_pairs_set: set[Pair] = set(existing_pairs.keys())
+        for table_id, slot_id in new_pairs_set - existing_pairs_set:
             await booking_table_slot_crud.create(
                 session=self.session,
                 obj_in={
@@ -580,3 +602,33 @@ class BookingService:
             effective_pairs=effective_pairs,
             pairs_to_check_taken=pairs_to_check_taken,
         )
+
+    @staticmethod
+    def _enqueue_admin_event_notification(
+        booking_id: UUID,
+        event_type: str,
+        message: str,
+        extra: Optional[dict[str, Any]] = None,
+    ) -> None:
+        """Ставит задачу уведомления админов в очередь."""
+        task_extra = {'booking_id': str(booking_id)}
+        if extra:
+            task_extra.update(extra)
+
+        try:
+            notify_result = notify_admins_about_event.delay(
+                str(booking_id),
+                event_type,
+                {'message': message},
+            )
+        except (OperationalError, OSError):
+            logger.exception(
+                'Не удалось поставить задачу на почтовое уведомление в '
+                'очередь',
+                extra=task_extra,
+            )
+        else:
+            logger.info(
+                'Задача почтового уведомления поставлена в очередь',
+                extra={'task_id': notify_result.id, **task_extra},
+            )

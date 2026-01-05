@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from celery import Task
-from src.booking.constants import BookingStatus
+from src.booking.enums import BookingStatus
 from src.booking.models import Booking
 from src.cafes.models import Cafe
 from src.celery.asyncio_runner import run_async

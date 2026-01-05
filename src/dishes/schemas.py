@@ -47,14 +47,11 @@ class DishUpdate(BaseModel):
         max_length=MAX_DESCRIPTION_LENGTH,
         min_length=MIN_DESCRIPTION_LENGTH,
     )
-    photo_id: Optional[UUID] = None
-    price: Optional[Decimal] = Field(
-        None,
-        ge=DISH_MIN_PRICE,
-        le=DISH_MAX_PRICE,
-        )
-    cafes_id: Optional[List[UUID]] = None
-    is_active: Optional[bool] = None
+    photo_id: Optional[UUID] = Field(None, description='UUID фото')
+    price: Optional[int] = Field(None, ge=DISH_MIN_PRICE, le=DISH_MAX_PRICE)
+    cafes_id: Optional[List[UUID]]
+    is_active: bool = True
+    price: int = Field(gt=0)
 
 
 class DishInfo(BaseDish):
