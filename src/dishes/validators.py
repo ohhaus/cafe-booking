@@ -58,7 +58,7 @@ async def validate_active_cafes_ids(
     missing = requested - found
     if missing:
         raise NotFoundException(
-            f'Не найдены или неактивны кафе с ID: {missing}'
+            f'Не найдены или неактивны кафе с ID: {missing}',
         )
 
     return cafes

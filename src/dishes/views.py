@@ -78,7 +78,9 @@ async def create_dish_new(
 ) -> DishInfo:
     """Создание нового блюда."""
     dish = await dishes_service.create_dish_service(
-        session=session, dish_in=dish_in, current_user=current_user
+        session=session,
+        dish_in=dish_in,
+        current_user=current_user,
     )
     return DishInfo.model_validate(dish)
 
