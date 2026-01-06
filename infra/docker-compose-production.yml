@@ -1,0 +1,76 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: prod-postgres
+    env_file: .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: prod-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  app:
+    image: your_dockerhub/infra-app:latest
+    container_name: prod-app
+    env_file: .env
+    expose:
+      - "8000"
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  celery_worker:
+    image: your_dockerhub/infra-app:latest
+    container_name: prod-celery-worker
+    env_file: .env
+    command: celery -A src.celery.celery_app:celery_app worker -l info
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+
+  celery_beat:
+    image: your_dockerhub/infra-app:latest
+    container_name: prod-celery-beat
+    env_file: .env
+    command: celery -A src.celery.celery_app:celery_app beat -l info
+    volumes:
+      - celerybeat_data:/app/celerybeat
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+
+  flower:
+    image: your_dockerhub/infra-app:latest
+    container_name: prod-flower
+    env_file: .env
+    command: celery -A src.celery.celery_app:celery_app flower --port=5555
+    expose:
+      - "5555"
+    restart: unless-stopped
+
+  nginx:
+    build: ./nginx
+    container_name: prod-nginx
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - /opt/cafe-booking/app/media:/media
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  celerybeat_data:
