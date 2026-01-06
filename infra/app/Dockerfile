@@ -9,9 +9,14 @@ COPY pyproject.toml .
 COPY alembic.ini .
 COPY src/ ./src
 
-RUN useradd -m -u 1000 appuser \
-    && chown -R appuser:appuser /app \
-    && chown -R appuser:appuser /app/src/media
+COPY scripts/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+RUN useradd -m -u 1000 appuser && \
+    mkdir -p /app/logs /app/media && \
+    chown -R appuser:appuser /app /app/media /app/logs && \
+    chmod 755 /app/media /app/logs
+
 USER appuser
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/app/entrypoint.sh"]
