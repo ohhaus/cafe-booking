@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-# Цвета для логов
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -26,7 +25,7 @@ wait_for_postgres() {
     log_info "Waiting for PostgreSQL at ${DATABASE_HOST:-postgres}:${DATABASE_PORT:-5432}..."
 
     while [ $attempt -le $max_attempts ]; do
-        if pg_isready -h "${DATABASE_HOST:-postgres}" -p "${DATABASE_PORT:-5432}" -U "${DATABASE_USER:-postgres}" > /dev/null 2>&1; then
+        if nc -z "${DATABASE_HOST:-postgres}" "${DATABASE_PORT:-5432}" 2>/dev/null; then
             log_info "PostgreSQL is ready!"
             return 0
         fi
@@ -47,7 +46,7 @@ wait_for_redis() {
     log_info "Waiting for Redis at ${REDIS_HOST:-redis}:${REDIS_PORT:-6379}..."
 
     while [ $attempt -le $max_attempts ]; do
-        if redis-cli -h "${REDIS_HOST:-redis}" -p "${REDIS_PORT:-6379}" -a "${REDIS_PASSWORD}" ping > /dev/null 2>&1; then
+        if nc -z "${REDIS_HOST:-redis}" "${REDIS_PORT:-6379}" 2>/dev/null; then
             log_info "Redis is ready!"
             return 0
         fi

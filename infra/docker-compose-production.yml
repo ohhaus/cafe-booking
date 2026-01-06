@@ -22,13 +22,15 @@ services:
     image: redis:7-alpine
     container_name: prod-redis
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     networks:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "sh", "-c", "redis-cli -a $$REDIS_PASSWORD ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli -a $REDIS_PASSWORD ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -61,7 +63,7 @@ services:
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 40s
 
   celery_worker:
     image: ohhaus/cafe-booking-app:latest
@@ -85,7 +87,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "celery", "-A", "src.celery.celery_app:celery_app", "inspect", "ping", "-d", "celery@$$HOSTNAME"]
+      test: ["CMD-SHELL", "celery -A src.celery.celery_app:celery_app inspect ping -d celery@$HOSTNAME || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
