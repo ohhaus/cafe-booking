@@ -49,6 +49,8 @@ services:
       context: ..
       dockerfile: src/Dockerfile
     container_name: infra-app
+    env_file:
+      - ../.env
     ports:
       - "8000:8000"
     environment:
@@ -59,6 +61,12 @@ services:
       CELERY_RESULT_DB: 2
       CELERY_TIMEZONE: Europe/Moscow
       CELERY_ENABLE_UTC: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     depends_on:
       db:
         condition: service_healthy
@@ -90,7 +98,7 @@ services:
         condition: service_healthy
     volumes:
       - ../src:/app/src
-    command: ["celery", "-A", "src.celery.celery_app:celery_app", "worker", "-l", "debug"]
+    command: ["celery", "-A", "src.celery.celery_app:celery_app", "worker", "-l", "info"]
     restart: unless-stopped
     networks:
       - backend
