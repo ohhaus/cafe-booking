@@ -32,7 +32,7 @@ COUNT_FILES: int = 10
 MAX_BYTES: int = BYTES_IN_MB * VALUE_MEMORIE_FILE_MB
 
 # Пути
-BASE_DIR: Path = Path(__file__).resolve().parent.parent
+BASE_DIR: Path = Path('/app')
 MEDIA_DIR: Path = BASE_DIR / 'media' / 'images'
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
