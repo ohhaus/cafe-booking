@@ -11,10 +11,15 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
+    command: >
+      postgres
+        -c max_connections=1000
+        -c shared_buffers=256MB
+        -c effective_cache_size=768MB
+        -c maintenance_work_mem=64MB
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
-      interval: 5s
-      timeout: 3s
+      interval: 10s
       retries: 5
 
   redis:
@@ -25,22 +30,23 @@ services:
       - redis_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
-      interval: 5s
-      timeout: 3s
+      test: ["CMD", "redis-cli", "ping", "-a", "${REDIS_PASSWORD}"]
+      interval: 10s
       retries: 5
 
   app:
-    build: ./src
+    build:
+      context: ./app
+      dockerfile: Dockerfile
     container_name: prod-app
-    env_file: .env
+    env_file: ../.env.example
     environment:
       DATABASE_URL: postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-cafe_booking}
       REDIS_URL: redis://default:${REDIS_PASSWORD}@redis:6379/0
     expose:
       - "8000"
     volumes:
-      - media_volume:/app/media
+      - media_volume:/media
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,46 +56,47 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 10s
-      timeout: 5s
       retries: 5
 
   celery_worker:
-    build: ./src
+    build:
+      context: ./app
+      dockerfile: Dockerfile
     container_name: prod-celery-worker
-    env_file: .env
+    env_file: ../.env.example
     environment:
       DATABASE_URL: postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-cafe_booking}
       REDIS_URL: redis://default:${REDIS_PASSWORD}@redis:6379/0
     command: celery -A src.celery.celery_app:celery_app worker -l info --concurrency=4
     volumes:
-      - media_volume:/app/media
+      - media_volume:/media
     depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
+      - redis
+      - postgres
     restart: unless-stopped
 
   celery_beat:
-    build: ./src
+    build:
+      context: ./app
+      dockerfile: Dockerfile
     container_name: prod-celery-beat
-    env_file: .env
+    env_file: ../.env.example
     environment:
       DATABASE_URL: postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-cafe_booking}
       REDIS_URL: redis://default:${REDIS_PASSWORD}@redis:6379/0
     command: celery -A src.celery.celery_app:celery_app beat -l info
     volumes:
       - celerybeat_data:/app/celerybeat
-      - media_volume:/app/media
+      - media_volume:/media
     depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
+      - redis
+      - postgres
     restart: unless-stopped
 
   nginx:
-    build: ./infra/nginx
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
     container_name: prod-nginx
     ports:
       - "127.0.0.1:8080:80"
@@ -98,11 +105,6 @@ services:
     depends_on:
       - app
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
 volumes:
   postgres_data:
