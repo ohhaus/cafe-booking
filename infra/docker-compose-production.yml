@@ -4,10 +4,18 @@ services:
   postgres:
     image: postgres:17-alpine
     container_name: prod-postgres
-    env_file: .env
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-cafe_booking}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -16,61 +24,88 @@ services:
     volumes:
       - redis_data:/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   app:
-    image: your_dockerhub/infra-app:latest
+    build: ./src
     container_name: prod-app
     env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-cafe_booking}
+      REDIS_URL: redis://default:${REDIS_PASSWORD}@redis:6379/0
     expose:
       - "8000"
+    volumes:
+      - media_volume:/app/media
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   celery_worker:
-    image: your_dockerhub/infra-app:latest
+    build: ./src
     container_name: prod-celery-worker
     env_file: .env
-    command: celery -A src.celery.celery_app:celery_app worker -l info
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-cafe_booking}
+      REDIS_URL: redis://default:${REDIS_PASSWORD}@redis:6379/0
+    command: celery -A src.celery.celery_app:celery_app worker -l info --concurrency=4
+    volumes:
+      - media_volume:/app/media
     depends_on:
-      - redis
-      - postgres
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   celery_beat:
-    image: your_dockerhub/infra-app:latest
+    build: ./src
     container_name: prod-celery-beat
     env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-cafe_booking}
+      REDIS_URL: redis://default:${REDIS_PASSWORD}@redis:6379/0
     command: celery -A src.celery.celery_app:celery_app beat -l info
     volumes:
       - celerybeat_data:/app/celerybeat
+      - media_volume:/app/media
     depends_on:
-      - redis
-      - postgres
-    restart: unless-stopped
-
-  flower:
-    image: your_dockerhub/infra-app:latest
-    container_name: prod-flower
-    env_file: .env
-    command: celery -A src.celery.celery_app:celery_app flower --port=5555
-    expose:
-      - "5555"
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   nginx:
-    build: ./nginx
+    build: ./infra/nginx
     container_name: prod-nginx
     ports:
       - "127.0.0.1:8080:80"
     volumes:
-      - /opt/cafe-booking/app/media:/media
+      - media_volume:/media
     depends_on:
       - app
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
   redis_data:
   celerybeat_data:
+  media_volume:
