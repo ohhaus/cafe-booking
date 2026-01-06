@@ -1,6 +1,5 @@
 from decimal import Decimal
 from pathlib import Path
-import secrets
 from typing import Any
 
 from pydantic import EmailStr, Field, PositiveInt
@@ -20,8 +19,8 @@ MIN_DESCRIPTION_LENGTH: int = 1
 MIN_TG_LENGTH: int = 5
 MAX_TG_LENGTH: int = 64
 UUID_LENGTH: int = 36
-DISH_MIN_PRICE: Decimal = 0
-DISH_MAX_PRICE: Decimal = 10000.00
+DISH_MIN_PRICE: Decimal = Decimal('0')
+DISH_MAX_PRICE: Decimal = Decimal('10000.00')
 
 # Файлы и медиа
 BYTES_IN_MB: int = 1024**2
@@ -55,6 +54,7 @@ class DatabaseSettings(BaseSettings):
         env_prefix='DATABASE_',
         env_file='.env',
         env_file_encoding='utf-8',
+        extra='ignore',
     )
 
 
@@ -72,6 +72,7 @@ class RedisSettings(BaseSettings):
         env_prefix='REDIS_',
         env_file='.env',
         env_file_encoding='utf-8',
+        extra='ignore',
     )
 
 
@@ -99,13 +100,14 @@ class CacheSettings(BaseSettings):
         env_prefix='CACHE_',
         env_file='.env',
         env_file_encoding='utf-8',
+        extra='ignore',
     )
 
 
 class AuthSettings(BaseSettings):
     """Настройки авторизации."""
 
-    SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
+    SECRET_KEY: str = Field(default='super-secret-key')
     ACCESS_TOKEN_EXPIRE_MINUTES: PositiveInt = 6000
     ALGORITHM: str = 'HS256'
 
@@ -114,6 +116,7 @@ class AuthSettings(BaseSettings):
         env_file='.env',
         env_file_encoding='utf-8',
         case_sensitive=True,
+        extra='ignore',
     )
 
 
@@ -168,6 +171,7 @@ class CelerySettings(BaseSettings):
         env_prefix='CELERY_',
         env_file='.env',
         env_file_encoding='utf-8',
+        extra='ignore',
     )
 
 
@@ -189,6 +193,23 @@ class MailSettings(BaseSettings):
         env_prefix='MAIL_',
         env_file='.env',
         env_file_encoding='utf-8',
+        extra='ignore',
+    )
+
+
+class SuperUserSettings(BaseSettings):
+    """Настройки для создания супепользователя."""
+
+    USERNAME: str = Field(default='ohhaus')
+    EMAIL: str = Field(default='admin@example.com')
+    PHONE: str = Field(default='+79776667766')
+    PASSWORD: str = Field(default='AdminSecure123!')
+    TG_ID: str = Field(default='123456789')
+
+    model_config = SettingsConfigDict(
+        env_prefix='SUPERUSER_',
+        env_file='.env',
+        env_file_encoding='utf-8',
     )
 
 
@@ -201,11 +222,13 @@ class Settings(BaseSettings):
     auth: AuthSettings = AuthSettings()
     celery: CelerySettings = CelerySettings()
     mail: MailSettings = MailSettings()
+    superuser: SuperUserSettings = SuperUserSettings()
 
     model_config = SettingsConfigDict(
         env_file='.env',
         env_file_encoding='utf-8',
         case_sensitive=False,
+        extra='ignore',
     )
 
 

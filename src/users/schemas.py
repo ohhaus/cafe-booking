@@ -206,8 +206,6 @@ class UserUpdate(BaseUser, RoleMixin):
 class AdminUserCreate(UserCreate, RoleMixin):
     """Схема для создания пользователя с ролью."""
 
-    pass
-
 
 class AuthToken(BaseModel):
     """Схема для ответа с токеном."""
