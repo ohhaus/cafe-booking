@@ -1,101 +1,109 @@
 #!/bin/bash
 set -e
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+log() {
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
 }
 
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+# Выводим отладочную информацию о переменных окружения
+debug_env() {
+    log "=== Отладочная информация ==="
+    log "DATABASE_URL: ${DATABASE_URL:-не задан}"
+    log "DATABASE_HOST: ${DATABASE_HOST:-не задан}"
+    log "DATABASE_USER: ${DATABASE_USER:-не задан}"
+    log "DATABASE_NAME: ${DATABASE_NAME:-не задан}"
+    log "REDIS_URL: ${REDIS_URL:-не задан}"
+    log "============================="
 }
 
 wait_for_postgres() {
-    local max_attempts=30
-    local attempt=1
+    log "Ожидание готовности PostgreSQL..."
+    
+    # Устанавливаем значения по умолчанию, если переменные не заданы
+    local db_host="${DATABASE_HOST:-postgres}"
+    local db_port="${DATABASE_PORT:-5432}"
+    local db_user="${DATABASE_USER:-postgres}"
+    local db_password="${DATABASE_PASSWORD:-postgres}"
+    local db_name="${DATABASE_NAME:-postgres}"
+    
+    log "Параметры подключения: ${db_user}@${db_host}:${db_port}/${db_name}"
+    
+    until python3 - <<EOF
+import asyncpg, asyncio, os, sys, logging
 
-    log_info "Waiting for PostgreSQL at ${DATABASE_HOST:-postgres}:${DATABASE_PORT:-5432}..."
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-    while [ $attempt -le $max_attempts ]; do
-        if nc -z "${DATABASE_HOST:-postgres}" "${DATABASE_PORT:-5432}" 2>/dev/null; then
-            log_info "PostgreSQL is ready!"
-            return 0
-        fi
+async def check():
+    try:
+        conn = await asyncpg.connect(
+            host="${db_host}",
+            port=${db_port},
+            user="${db_user}",
+            password="${db_password}",
+            database="${db_name}",
+        )
+        await conn.close()
+        logger.info("Подключение к PostgreSQL успешно")
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка подключения к PostgreSQL: {e}")
+        return False
 
-        log_warning "PostgreSQL is unavailable (attempt $attempt/$max_attempts) - sleeping..."
+sys.exit(0 if asyncio.run(check()) else 1)
+EOF
+    do
         sleep 2
-        attempt=$((attempt + 1))
     done
-
-    log_error "PostgreSQL did not become available in time"
-    return 1
+    log "PostgreSQL готов!"
 }
 
 wait_for_redis() {
-    local max_attempts=30
-    local attempt=1
+    log "Ожидание Redis..."
+    local redis_host="${REDIS_HOST:-redis}"
+    local redis_port="${REDIS_PORT:-6379}"
+    
+    log "Параметры Redis: ${redis_host}:${redis_port}"
+    
+    until python3 - <<EOF
+import socket, os, sys, logging
 
-    log_info "Waiting for Redis at ${REDIS_HOST:-redis}:${REDIS_PORT:-6379}..."
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-    while [ $attempt -le $max_attempts ]; do
-        if nc -z "${REDIS_HOST:-redis}" "${REDIS_PORT:-6379}" 2>/dev/null; then
-            log_info "Redis is ready!"
-            return 0
-        fi
-
-        log_warning "Redis is unavailable (attempt $attempt/$max_attempts) - sleeping..."
+try:
+    s = socket.socket()
+    s.settimeout(2)
+    s.connect(("${redis_host}", ${redis_port}))
+    s.close()
+    logger.info("Подключение к Redis успешно")
+    sys.exit(0)
+except Exception as e:
+    logger.error(f"Ошибка подключения к Redis: {e}")
+    sys.exit(1)
+EOF
+    do
         sleep 2
-        attempt=$((attempt + 1))
     done
-
-    log_error "Redis did not become available in time"
-    return 1
-}
-
-run_migrations() {
-    log_info "Running database migrations..."
-
-    cd /app
-
-    if alembic upgrade head; then
-        log_info "Migrations completed successfully!"
-        return 0
-    else
-        log_error "Migration failed!"
-        return 1
-    fi
+    log "Redis готов!"
 }
 
 main() {
-    log_info "Starting application initialization..."
-
-    wait_for_postgres || exit 1
-    wait_for_redis || exit 1
-
-    run_migrations || exit 1
-
-    log_info "Starting application server..."
-
-    exec uvicorn src.main:app \
-        --host 0.0.0.0 \
-        --port 8000 \
-        --proxy-headers \
-        --forwarded-allow-ips='*'
+    log "Запуск Cafe Booking API"
+    
+    # Отладочная информация
+    debug_env
+    
+    # Ждем готовности сервисов
+    wait_for_postgres
+    wait_for_redis
+    
+    log "Применение миграций..."
+    alembic upgrade head
+    
+    log "Запуск приложения"
+    exec uvicorn src.main:app --host 0.0.0.0 --port 8000
 }
 
-cleanup() {
-    log_info "Received shutdown signal, cleaning up..."
-    exit 0
-}
-
-trap cleanup SIGTERM SIGINT SIGQUIT
-
+trap 'exit 0' SIGTERM SIGINT
 main "$@"

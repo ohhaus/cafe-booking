@@ -62,12 +62,7 @@ async def run_async_migrations() -> None:
 
 
 def run_migrations_online() -> None:
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        asyncio.run(run_async_migrations())
-    else:
-        loop.run_until_complete(run_async_migrations())
+    asyncio.run(run_async_migrations())
 
 
 if context.is_offline_mode():

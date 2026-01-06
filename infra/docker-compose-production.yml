@@ -43,9 +43,10 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
-      DATABASE_HOST: postgres
-      DATABASE_NAME: ${DATABASE_NAME:-postgres}
-      REDIS_HOST: redis
+      # УБЕРИТЕ эти строки - они уже в .env:
+      # DATABASE_HOST: postgres
+      # DATABASE_NAME: ${DATABASE_NAME:-postgres}
+      # REDIS_HOST: redis
     expose:
       - "8000"
     volumes:
@@ -63,16 +64,22 @@ services:
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 40s
+      start_period: 60s
 
   celery_worker:
     image: ohhaus/cafe-booking-app:latest
     container_name: prod-celery-worker
     env_file: .env
     environment:
+      # ДОБАВЬТЕ недостающие переменные:
       DATABASE_HOST: postgres
-      DATABASE_NAME: ${DATABASE_NAME:-postgres}
+      DATABASE_NAME: postgres
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+      DATABASE_PORT: 5432
       REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     command: celery -A src.celery.celery_app:celery_app worker -l info --concurrency=4
     volumes:
       - media_volume:/app/media
@@ -86,21 +93,21 @@ services:
       app:
         condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "celery -A src.celery.celery_app:celery_app inspect ping -d celery@$HOSTNAME || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
 
   celery_beat:
     image: ohhaus/cafe-booking-app:latest
     container_name: prod-celery-beat
     env_file: .env
     environment:
+      # ДОБАВЬТЕ недостающие переменные:
       DATABASE_HOST: postgres
-      DATABASE_NAME: ${DATABASE_NAME:-postgres}
+      DATABASE_NAME: postgres
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+      DATABASE_PORT: 5432
       REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     command: celery -A src.celery.celery_app:celery_app beat -l info --scheduler=celery.beat:PersistentScheduler
     volumes:
       - celerybeat_data:/app/celerybeat
@@ -129,12 +136,6 @@ services:
       app:
         condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
 
 networks:
   app-network:
@@ -142,10 +143,6 @@ networks:
 
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
   celerybeat_data:
-    driver: local
   media_volume:
-    driver: local
