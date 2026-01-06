@@ -3,17 +3,20 @@ services:
     image: postgres:17-alpine
     container_name: prod-postgres
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME:-cafe_booking}
+      POSTGRES_USER: ${DATABASE_USER:-postgres}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+      POSTGRES_DB: ${DATABASE_NAME:-postgres}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-postgres} -d ${DATABASE_NAME:-postgres}"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
 
   redis:
     image: redis:7-alpine
@@ -21,24 +24,32 @@ services:
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
+    networks:
+      - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "sh", "-c", "redis-cli -a $$REDIS_PASSWORD ping | grep PONG"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
 
   app:
     image: ohhaus/cafe-booking-app:latest
     container_name: prod-app
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-cafe_booking}
-      REDIS_URL: redis://default:${REDIS_PASSWORD}@redis:6379/0
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      DATABASE_HOST: postgres
+      DATABASE_NAME: ${DATABASE_NAME:-postgres}
+      REDIS_HOST: redis
     expose:
       - "8000"
     volumes:
       - media_volume:/app/media
+    networks:
+      - app-network
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,37 +57,60 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 15s
+      timeout: 10s
       retries: 5
+      start_period: 30s
 
   celery_worker:
     image: ohhaus/cafe-booking-app:latest
     container_name: prod-celery-worker
     env_file: .env
+    environment:
+      DATABASE_HOST: postgres
+      DATABASE_NAME: ${DATABASE_NAME:-postgres}
+      REDIS_HOST: redis
     command: celery -A src.celery.celery_app:celery_app worker -l info --concurrency=4
     volumes:
       - media_volume:/app/media
+    networks:
+      - app-network
     depends_on:
       redis:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      app:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "celery", "-A", "src.celery.celery_app:celery_app", "inspect", "ping", "-d", "celery@$$HOSTNAME"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   celery_beat:
     image: ohhaus/cafe-booking-app:latest
     container_name: prod-celery-beat
     env_file: .env
-    command: celery -A src.celery.celery_app:celery_app beat -l info
+    environment:
+      DATABASE_HOST: postgres
+      DATABASE_NAME: ${DATABASE_NAME:-postgres}
+      REDIS_HOST: redis
+    command: celery -A src.celery.celery_app:celery_app beat -l info --scheduler=celery.beat:PersistentScheduler
     volumes:
       - celerybeat_data:/app/celerybeat
       - media_volume:/app/media
+    networks:
+      - app-network
     depends_on:
       redis:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+      app:
         condition: service_healthy
     restart: unless-stopped
 
@@ -86,13 +120,30 @@ services:
     ports:
       - "127.0.0.1:8080:80"
     volumes:
-      - media_volume:/media
+      - media_volume:/media:ro
+    networks:
+      - app-network
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   postgres_data:
+    driver: local
   redis_data:
+    driver: local
   celerybeat_data:
+    driver: local
   media_volume:
+    driver: local
