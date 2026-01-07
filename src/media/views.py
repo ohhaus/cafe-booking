@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.sessions import get_async_session
 from src.media.responses import CREATE_RESPONSES, GET_BY_ID_RESPONSES
-from src.media.schemas import MediaData, MediaInfo
+from src.media.schemas import MediaInfo
 from src.media.services import get_image_for_download, save_image
 from src.users.dependencies import require_roles
 from src.users.models import User, UserRole
