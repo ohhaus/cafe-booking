@@ -1,3 +1,4 @@
+import asyncio
 import io
 import logging
 from pathlib import Path
@@ -32,10 +33,13 @@ async def save_image(
     image_id = uuid.uuid4()
     filename = f'{image_id}.jpg'
     path: Path = MEDIA_DIR / filename
-    path.parent.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(
+        lambda: path.parent.mkdir(parents=True, exist_ok=True),
+    )
 
-    pil_image.save(path, format='JPEG')
-    size = path.stat().st_size
+    await asyncio.to_thread(lambda: pil_image.save(path, format='JPEG'))
+    stat = await asyncio.to_thread(path.stat)
+    size = stat.st_size
 
     image = await create_image(
         session,
@@ -66,7 +70,6 @@ async def get_image_for_download(
     cached_data = await cache.get(key_media(image_id))
 
     if cached_data:
-        # Валидируем и возвращаем через схему
         schema = ImageMediaSchema(**cached_data)
         if not schema.active:
             raise NotFoundException('Изображение не найдено.')
