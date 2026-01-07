@@ -63,7 +63,7 @@
 
 ***Безопасность и криптография***
 - cryptography `46.0.3`
-
+```
 </details>
 
 ## Quickstart (Docker)
