@@ -15,10 +15,10 @@
 
 ## Технологический стек
 
-```md
 <details>
 <summary>Показать технологический стек</summary>
 
+```md
 **Язык и платформа**
 - Python `3.12`
 
@@ -62,8 +62,8 @@
 
 ## Безопасность и криптография
 - cryptography `46.0.3`
-</details>
 ```
+</details>
 
 ## Quickstart (Docker)
 
@@ -289,9 +289,9 @@ docker compose -f infra/docker-compose.yml logs -f
 
 ### Postman
 
-```md
 # Коллекция и сценарии лежат в postman_collection/:
 
+```md
 Cafe_booking.postman_collection.json # коллекция Postman
 
 README.md # инструкция по использованию
