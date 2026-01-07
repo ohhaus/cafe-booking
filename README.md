@@ -443,7 +443,7 @@ docker compose -f infra/docker-compose.yml logs -f
 
 - **Михаил Ковалев** — Teamlead, Backend-разработчик (Зона ответственности) — GitHub: <ссылка> — Telegram: @username
 - **Константин Клейников** — Backend-разработчик (Зона ответственности) — GitHub: <ссылка> — Telegram: @username
-- **Никита Ефремчев** — Backend-разработчик (Разработка модулей Cafes, Slots, Tables, Алгоритм синхронизации связей менеджер-кафе, Настройка Celery и разработка логики отправки уведомлений) — GitHub: [StigTax](https://github.com/StigTax) — Telegram: [@Nik_efr](https://t.me/@Nik_efr)
+- **Никита Ефремчев** — Backend-разработчик (Разработка модулей Cafes, Slots, Tables, Алгоритм синхронизации связей менеджер-кафе, Настройка Celery и разработка логики отправки уведомлений) — GitHub: [StigTax](https://github.com/StigTax) — Telegram: [@Nik_efr](https://t.me/Nik_efr)
 - **Владимир Игнатьев** — Backend-разработчик (Зона ответственности) — GitHub: <ссылка> — Telegram: @username
 - **Евгений Бирюков** — Backend-разработчик (Зона ответственности) — GitHub: <ссылка> — Telegram: @username
 - **Максим Быстрых** — Backend-разработчик (Зона ответственности) — GitHub: <ссылка> — Telegram: @username
