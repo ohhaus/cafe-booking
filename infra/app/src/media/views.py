@@ -28,10 +28,7 @@ logger = logging.getLogger('app')
     '/{image_id}',
     response_model=None,
     summary='Возвращает изображение в бинарном формате',
-    description=(
-        'Скачать изображение по его ID. '
-        'Доступно всем, если изображение активно.'
-    ),
+    description=('Скачать изображение по его ID. Доступно всем.'),
     responses=GET_BY_ID_RESPONSES,
 )
 async def download_image(
@@ -89,7 +86,10 @@ async def upload_image(
         logger.error(
             'Ошибка при загрузке изображения: %s',
             str(e),
-            extra={'user_id': str(current_user.id), 'filename': file.filename},
+            extra={
+                'user_id': str(current_user.id),
+                'file_name': file.filename,
+            },
             exc_info=True,
         )
         raise HTTPException(

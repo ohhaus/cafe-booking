@@ -43,14 +43,10 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
-      # УБЕРИТЕ эти строки - они уже в .env:
-      # DATABASE_HOST: postgres
-      # DATABASE_NAME: ${DATABASE_NAME:-postgres}
-      # REDIS_HOST: redis
     expose:
       - "8000"
     volumes:
-      - media_volume:/app/media
+      - media_volume:/app/media:rw
     networks:
       - app-network
     depends_on:
@@ -62,7 +58,7 @@ services:
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
       interval: 15s
-      timeout: 10s
+      timeout: 15s
       retries: 5
       start_period: 60s
 
@@ -71,7 +67,6 @@ services:
     container_name: prod-celery-worker
     env_file: .env
     environment:
-      # ДОБАВЬТЕ недостающие переменные:
       DATABASE_HOST: postgres
       DATABASE_NAME: postgres
       DATABASE_USER: postgres
@@ -99,7 +94,6 @@ services:
     container_name: prod-celery-beat
     env_file: .env
     environment:
-      # ДОБАВЬТЕ недостающие переменные:
       DATABASE_HOST: postgres
       DATABASE_NAME: postgres
       DATABASE_USER: postgres

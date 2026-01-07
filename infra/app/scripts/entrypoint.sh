@@ -5,21 +5,9 @@ log() {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
 }
 
-# Выводим отладочную информацию о переменных окружения
-debug_env() {
-    log "=== Отладочная информация ==="
-    log "DATABASE_URL: ${DATABASE_URL:-не задан}"
-    log "DATABASE_HOST: ${DATABASE_HOST:-не задан}"
-    log "DATABASE_USER: ${DATABASE_USER:-не задан}"
-    log "DATABASE_NAME: ${DATABASE_NAME:-не задан}"
-    log "REDIS_URL: ${REDIS_URL:-не задан}"
-    log "============================="
-}
-
 wait_for_postgres() {
     log "Ожидание готовности PostgreSQL..."
     
-    # Устанавливаем значения по умолчанию, если переменные не заданы
     local db_host="${DATABASE_HOST:-postgres}"
     local db_port="${DATABASE_PORT:-5432}"
     local db_user="${DATABASE_USER:-postgres}"
@@ -91,10 +79,14 @@ EOF
 main() {
     log "Запуск Cafe Booking API"
     
-    # Отладочная информация
-    debug_env
+    if [ ! -d "/app/media/images" ]; then
+        log "ВНИМАНИЕ: Папка /app/media/images не существует!"
+        log "Создайте её в Dockerfile или проверьте монтирование тома."
+    else
+        log "Папка /app/media/images существует, права:"
+        ls -ld /app/media/images
+    fi
     
-    # Ждем готовности сервисов
     wait_for_postgres
     wait_for_redis
     
