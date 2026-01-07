@@ -15,9 +15,9 @@ COPY scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 RUN useradd -m -u 1000 appuser && \
-    mkdir -p /app/logs /app/media /app/celerybeat && \
+    mkdir -p /app/logs /app/media/images /app/celerybeat && \
     chown -R appuser:appuser /app && \
-    chmod 755 /app/media /app/logs /app/celerybeat
+    chmod 755 /app/media /app/media/images /app/logs /app/celerybeat
 
 USER appuser
 

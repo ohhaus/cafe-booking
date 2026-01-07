@@ -7,15 +7,15 @@ log() {
 
 wait_for_postgres() {
     log "Ожидание готовности PostgreSQL..."
-
+    
     local db_host="${DATABASE_HOST:-postgres}"
     local db_port="${DATABASE_PORT:-5432}"
     local db_user="${DATABASE_USER:-postgres}"
     local db_password="${DATABASE_PASSWORD:-postgres}"
     local db_name="${DATABASE_NAME:-postgres}"
-
+    
     log "Параметры подключения: ${db_user}@${db_host}:${db_port}/${db_name}"
-
+    
     until python3 - <<EOF
 import asyncpg, asyncio, os, sys, logging
 
@@ -50,9 +50,9 @@ wait_for_redis() {
     log "Ожидание Redis..."
     local redis_host="${REDIS_HOST:-redis}"
     local redis_port="${REDIS_PORT:-6379}"
-
+    
     log "Параметры Redis: ${redis_host}:${redis_port}"
-
+    
     until python3 - <<EOF
 import socket, os, sys, logging
 
@@ -78,15 +78,21 @@ EOF
 
 main() {
     log "Запуск Cafe Booking API"
-
-    mkdir -p /app/media/images
-
+    
+    if [ ! -d "/app/media/images" ]; then
+        log "ВНИМАНИЕ: Папка /app/media/images не существует!"
+        log "Создайте её в Dockerfile или проверьте монтирование тома."
+    else
+        log "Папка /app/media/images существует, права:"
+        ls -ld /app/media/images
+    fi
+    
     wait_for_postgres
     wait_for_redis
-
+    
     log "Применение миграций..."
     alembic upgrade head
-
+    
     log "Запуск приложения"
     exec uvicorn src.main:app --host 0.0.0.0 --port 8000
 }
