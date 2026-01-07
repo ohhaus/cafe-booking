@@ -1,6 +1,6 @@
+import asyncio
 import io
 import logging
-import asyncio
 from pathlib import Path
 import uuid
 
@@ -34,7 +34,7 @@ async def save_image(
     filename = f'{image_id}.jpg'
     path: Path = MEDIA_DIR / filename
     await asyncio.to_thread(
-        lambda: path.parent.mkdir(parents=True, exist_ok=True)
+        lambda: path.parent.mkdir(parents=True, exist_ok=True),
         )
 
     await asyncio.to_thread(lambda: pil_image.save(path, format='JPEG'))
