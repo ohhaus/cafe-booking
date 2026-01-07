@@ -441,10 +441,10 @@ docker compose -f infra/docker-compose.yml logs -f
 Проект выполнен командой **Team 4** (Яндекс Практикум).
 
 
-- **Михаил Ковалев** — Teamlead, Backend-разработчик (Настройка проекта, Разработка базовых классов для моделей БД, базовый CRUD, Насройка кеширования (Redis), Deploy на сервек, настройка CI/CD) — GitHub: [JinBir007](https://github.com/ohhaus) — Telegram: [@ohhaus](https://t.me/ohhaus)
-- **Константин Клейников** — Backend-разработчик (Модуль Bookings, Настройка связыей с модулями Slots, Tables, Формирование Pastman Collections) — GitHub: [JinBir007](https://github.com/kkleinikov) — Telegram: [@kkleinikov](https://t.me/kkleinikov)
+- **Михаил Ковалев** — Teamlead, Backend-разработчик (Настройка проекта, Разработка базовых классов для моделей БД, базовый CRUD, Насройка кеширования (Redis), Deploy на сервек, настройка CI/CD) — GitHub: [ohhaus](https://github.com/ohhaus) — Telegram: [@ohhaus](https://t.me/ohhaus)
+- **Константин Клейников** — Backend-разработчик (Модуль Bookings, Настройка связыей с модулями Slots, Tables, Формирование Pastman Collections) — GitHub: [kkleinikov](https://github.com/kkleinikov) — Telegram: [@kkleinikov](https://t.me/kkleinikov)
 - **Никита Ефремчев** — Backend-разработчик (Модули Cafes, Slots, Tables, Алгоритм синхронизации связей менеджер-кафе, Настройка Celery и разработка логики отправки уведомлений) — GitHub: [StigTax](https://github.com/StigTax) — Telegram: [@Nik_efr](https://t.me/Nik_efr)
-- **Владимир Игнатьев** — Backend-разработчик (Модуль Dishes, Кастомизация исключений) — GitHub: [JinBir007](https://github.com/Ignatev-V) — Telegram: [@V_Ignatev](https://t.me/V_Ignatev)
+- **Владимир Игнатьев** — Backend-разработчик (Модуль Dishes, Кастомизация исключений) — GitHub: [Ignatev-V](https://github.com/Ignatev-V) — Telegram: [@V_Ignatev](https://t.me/V_Ignatev)
 - **Евгений Бирюков** — Backend-разработчик (Модуль Users) — GitHub: [JinBir007](https://github.com/JinBir007) — Telegram: [@Yfg007](https://t.me/Yfg007)
-- **Максим Быстрых** — Backend-разработчик (Логирование, модуль Actions) —GitHub: [JinBir007](https://github.com/pro100max1996 ) — Telegram: [@pro100maksim1996](https://t.me/pro100maksim1996)
-- **Сергей Гусев** — Backend-разработчик (Модуль Media) — GitHub: [JinBir007](https://github.com/SergeyGusev1) — Telegram: [@magnatuch](https://t.me/magnatuch)
+- **Максим Быстрых** — Backend-разработчик (Логирование, модуль Actions) —GitHub: [pro100max1996](https://github.com/pro100max1996) — Telegram: [@pro100maksim1996](https://t.me/pro100maksim1996)
+- **Сергей Гусев** — Backend-разработчик (Модуль Media) — GitHub: [SergeyGusev1](https://github.com/SergeyGusev1) — Telegram: [@magnatuch](https://t.me/magnatuch)
