@@ -65,17 +65,17 @@ services:
   celery_worker:
     image: ohhaus/cafe-booking-app:latest
     container_name: prod-celery-worker
+    entrypoint: []
     env_file: .env
     environment:
-      DATABASE_HOST: postgres
-      DATABASE_NAME: postgres
-      DATABASE_USER: postgres
-      DATABASE_PASSWORD: postgres
-      DATABASE_PORT: 5432
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-    command: celery -A src.celery.celery_app:celery_app worker -l info --concurrency=4
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/postgres
+      REDIS_URL: redis://redis:6379/0
+      REDIS_PASSWORD: password
+      CELERY_BROKER_DB: 1
+      CELERY_RESULT_DB: 2
+      CELERY_TIMEZONE: Europe/Moscow
+      CELERY_ENABLE_UTC: "true"
+    command: ["celery", "-A", "src.celery.celery_app:celery_app", "worker", "-l", "info"]
     volumes:
       - media_volume:/app/media
     networks:
@@ -93,6 +93,7 @@ services:
     image: ohhaus/cafe-booking-app:latest
     container_name: prod-celery-beat
     env_file: .env
+    entrypoint: []
     environment:
       DATABASE_HOST: postgres
       DATABASE_NAME: postgres
@@ -102,6 +103,10 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+      CELERY_BROKER_DB: 1
+      CELERY_RESULT_DB: 2
+      CELERY_TIMEZONE: Europe/Moscow
+      CELERY_ENABLE_UTC: "true"
     command: celery -A src.celery.celery_app:celery_app beat -l info --scheduler=celery.beat:PersistentScheduler
     volumes:
       - celerybeat_data:/app/celerybeat
@@ -116,6 +121,37 @@ services:
       app:
         condition: service_healthy
     restart: unless-stopped
+
+  flower:
+      image: ohhaus/cafe-booking-app:latest
+      container_name: prod-flower
+      env_file: .env
+      entrypoint: []
+      environment:
+        REDIS_HOST: redis
+        REDIS_PORT: 6379
+        REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+        CELERY_BROKER_DB: 1
+        CELERY_RESULT_DB: 2
+        CELERY_TIMEZONE: Europe/Moscow
+        CELERY_ENABLE_UTC: "true"
+      command: >
+        celery
+        -A src.celery.celery_app:celery_app
+        flower
+        --port=5555
+        --url_prefix=flower
+      ports:
+      - "127.0.0.1:5555:5555"
+      networks:
+        - app-network
+      depends_on:
+        redis:
+          condition: service_healthy
+        celery_worker:
+          condition: service_started
+      restart: unless-stopped
 
   nginx:
     image: ohhaus/cafe-booking-nginx:latest
