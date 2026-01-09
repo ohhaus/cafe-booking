@@ -21,7 +21,7 @@ if not sys.stdout.isatty():
         os.environ['TERM'] = 'xterm-256color'
 
 # Создание директории для логов
-logs_dir = os.path.join(os.path.dirname(__file__), 'logs')
+logs_dir = '/app/logs'
 os.makedirs(logs_dir, exist_ok=True)
 logs_path = os.path.join(logs_dir, 'working.log')
 

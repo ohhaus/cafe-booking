@@ -2,6 +2,7 @@
 set -e
 
 log() {
+    local message="$1"
     local level="${2:-INFO}"
     local user="${USER_LOG:-system}"
     local color=""
@@ -22,9 +23,8 @@ log() {
             ;;
     esac
 
-    echo -e "$(date +'%d-%m-%Y %H:%M:%S') | ${color}${level}${reset} | $user | $1"
+    echo -e "$(date +'%d-%m-%Y %H:%M:%S') | ${color}${level}${reset} | $user | $message"
 }
-
 
 wait_for_postgres() {
     log "Ожидание готовности PostgreSQL..."
@@ -38,35 +38,33 @@ wait_for_postgres() {
     log "Параметры подключения: ${db_user}@${db_host}:${db_port}/${db_name}"
 
     until python3 - <<EOF
-import asyncpg, asyncio, os, sys, logging
+    import asyncpg, asyncio, os, sys
+    
+    async def check():
+        try:
+            conn = await asyncpg.connect(
+                host="${db_host}",
+                port=${db_port},
+                user="${db_user}",
+                password="${db_password}",
+                database="${db_name}",
+            )
+            await conn.close()
+            sys.exit(0)
+        except Exception:
+            sys.exit(1)
+    
+    sys.exit(0 if asyncio.run(check()) else 1)
+    EOF
+        do
+            log "PostgreSQL недоступен, повтор через 2 секунды..." WARNING
+            sleep 2
+        done
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-async def check():
-    try:
-        conn = await asyncpg.connect(
-            host="${db_host}",
-            port=${db_port},
-            user="${db_user}",
-            password="${db_password}",
-            database="${db_name}",
-        )
-        await conn.close()
-        print("✅ Подключение к PostgreSQL успешно")
-        return True
-    except Exception as e:
-        print(f"❌ Ошибка подключения к PostgreSQL: {e}")
-        return False
-
-sys.exit(0 if asyncio.run(check()) else 1)
-EOF
-    do
-        sleep 2
-    done
-    log "PostgreSQL готов!"
+    log "PostgreSQL готов!" INFO
 }
 
+# Ждём Redis
 wait_for_redis() {
     log "Ожидание Redis..."
     local redis_host="${REDIS_HOST:-redis}"
@@ -75,33 +73,30 @@ wait_for_redis() {
     log "Параметры Redis: ${redis_host}:${redis_port}"
 
     until python3 - <<EOF
-import socket, os, sys, logging
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+import socket, sys
 
 try:
     s = socket.socket()
     s.settimeout(2)
     s.connect(("${redis_host}", ${redis_port}))
     s.close()
-    print("✅ Подключение к Redis успешно")
     sys.exit(0)
-except Exception as e:
-    print(f"❌ Ошибка подключения к Redis: {e}")
+except Exception:
     sys.exit(1)
 EOF
     do
+        log "Redis недоступен, повтор через 2 секунды..." WARNING
         sleep 2
     done
-    log "Redis готов!"
+
+    log "Redis готов!" INFO
 }
 
 main() {
     log "Запуск Cafe Booking API"
 
     if [ ! -d "/app/media/images" ]; then
-        log "ВНИМАНИЕ: Папка /app/media/images не существует!" ERROR
+        log "Папка /app/media/images не существует!" ERROR
         log "Создайте её в Dockerfile или проверьте монтирование тома." ERROR
     else
         log "Папка /app/media/images существует, права:"

@@ -47,6 +47,7 @@ services:
       - "8000"
     volumes:
       - media_volume:/app/media:rw
+      - app_logs:/app/logs:rw
     networks:
       - app-network
     depends_on:
@@ -176,3 +177,4 @@ volumes:
   redis_data:
   celerybeat_data:
   media_volume:
+  app_logs:
