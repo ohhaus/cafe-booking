@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from src.actions.views import router as actions_router
 from src.auth.views import router as auth_router
 from src.booking.views import router as booking_router
 from src.cafes.views import router as cafes_router
@@ -26,6 +27,7 @@ main_router.include_router(
     tags=['Временные слоты'],
 )
 main_router.include_router(dishes_router, prefix='/dishes', tags=['Блюда'])
+main_router.include_router(actions_router, prefix='/actions', tags=['Акции'])
 main_router.include_router(
     booking_router,
     prefix='/booking',

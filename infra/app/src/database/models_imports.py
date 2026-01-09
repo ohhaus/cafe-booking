@@ -1,3 +1,4 @@
+from src.actions import models as _actions  # noqa
 from src.users import models as _users  # noqa
 from src.cafes import models as _cafes  # noqa
 from src.tables import models as _tables  # noqa
