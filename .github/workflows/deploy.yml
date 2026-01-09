@@ -69,8 +69,8 @@ jobs:
           passphrase: ${{ secrets.SERVER_SSH_PASSPHRASE }}
           script: |
             cd cafe-booking
-            sudo docker compose -f docker-compose-production pull
-            sudo docker compose -f docker-compose-production up -d --remove-orphans
+            sudo docker compose -f docker-compose-production.yml pull
+            sudo docker compose -f docker-compose-production.yml up -d --remove-orphans
 
             # Удаляем только образы приложения и NGINX
             sudo docker image prune -af --filter "reference=${{ env.APP_IMAGE }}:*"
