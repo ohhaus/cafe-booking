@@ -97,7 +97,7 @@ async def _send_daily_booking_reminders_async(target_date: str | None) -> int:
         </html>
         """
 
-        await notification.send_email([email], subject, body)
+        await notification._send_email([email], subject, body)
         sent += 1
 
     logger.info(
