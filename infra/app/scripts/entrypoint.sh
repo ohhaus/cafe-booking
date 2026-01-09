@@ -22,7 +22,7 @@ log() {
             ;;
     esac
 
-    echo -e "${color}prod-app | $(date +'%d-%m-%Y %H:%M:%S') | $level | USER $user | $1${reset}"
+    echo -e "$(date +'%d-%m-%Y %H:%M:%S') | ${color}${level}${reset} | $user | $1"
 }
 
 
