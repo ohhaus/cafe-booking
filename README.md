@@ -4,14 +4,14 @@
 
 ## Основной функционал
 
-- Управление пользователями (создание/ редактирование/ блокировка-разблокировка)
+- Управление пользователями (создание, редактирование, блокировка и разблокировка)
 - Авторизация пользователей
-- Бронирование столов в кафе с выбором даты, времени
+- Бронирование столов в кафе с выбором даты и времени
 - Предоставление информации о действующих акциях
 - Предоставление информации о доступных блюдах
 - Управление бронированием
 - Напоминание о бронировании
-- Уведомление администратора о бронировании/ изменении бронирования
+- Уведомление администратора о бронировании и изменении бронирования
 
 ## Технологический стек
 
@@ -43,15 +43,13 @@
 
 **Фоновые задачи**
 - Celery `5.6.0`
-- Redis (клиент) `7.1.0`
+- Redis (broker/backend) `7.1.0`
 - Flower `2.0.1`
 - kombu `5.6.1`, amqp `5.3.1`
 
 **HTTP и аутентификация**
 - HTTPX `0.28.1`
 - PyJWT `2.8.0`
-
-### Безопасность и криптография
 
 **Тестирование**
 - pytest `9.0.2`
@@ -110,7 +108,7 @@ git clone git@github.com:Yandex-Practicum-Students/57_58_booking_seats_team_4.gi
 python -m venv venv
 . venv/Scripts/activate
 
-# Linux и MacOS:
+# Linux и macOS:
 python3 -m venv venv
 source venv/bin/activate
 ```
@@ -153,7 +151,7 @@ DATABASE_POOL_PING=true
 DATABASE_ECHO_SQL=false
 
 # Redis
-REDIS_URL=redis://localhost:6379/0 # DB для кешей/вспомогательных данных
+REDIS_URL=redis://redis:6379/0 # DB для кэша/вспомогательных данных
 REDIS_PASSWORD=password
 
 # Celery
@@ -209,7 +207,7 @@ docker compose -f infra/docker-compose.yml exec app alembic revision --autogener
 # список контейнеров и их статус
 docker compose -f infra/docker-compose.yml ps
 
-# Вывод логов в терминал (для тихого режима)
+# Вывод логов в терминал (для режима -d)
 docker compose -f infra/docker-compose.yml logs -f
 # Остановить просмотр логов: Ctrl + C
 ```
@@ -236,7 +234,7 @@ docker compose -f infra/docker-compose.yml logs -f
 
 ## Основные запросы API
 
-| Endpoint                                | Метод | Описание                                                                     | Доступ                      |
+| Endpoint | Method | Description | Access |
 | --------------------------------------- | ----- | ---------------------------------------------------------------------------- | --------------------------- |
 | `/auth/login`                           | POST  | Получение токена авторизации (логин + пароль)                                | Гость                       |
 | `/users/`                               | POST  | Регистрация нового пользователя                                              | Гость                       |
@@ -267,7 +265,6 @@ docker compose -f infra/docker-compose.yml logs -f
 | `/booking/{booking_id}`                 | PATCH | Частичное обновление бронирования                                            | Авторизованный пользователь |
 | `/media/`                               | POST  | Загрузить изображение                                                        | Администратор / Менеджер    |
 | `/media/{image_id}`                     | GET   | Скачать изображение по ID (если активно)                                     | Гость                       |
-
 
 Полный перечень моделей, входных и выходных параметров можно изучить в Swagger UI или ReDoc.
 
@@ -317,7 +314,13 @@ docker compose -f infra/docker-compose.yml logs -f
 │   └── README.md
 ├── src
 │   ├── actions
-│   │   └── __init__.py
+│   │   ├── __init__.py
+│   │   ├── models.py
+│   │   ├── responses.py
+│   │   ├── schemas.py
+│   │   ├── service.py
+│   │   ├── validators.py
+│   │   └── views.py
 │   ├── auth
 │   │   ├── __init__.py
 │   │   ├── responses.py
@@ -391,6 +394,16 @@ docker compose -f infra/docker-compose.yml logs -f
 │   │   ├── services.py
 │   │   ├── validators.py
 │   │   └── views.py
+│   ├── media
+│   │   ├── __init__.py
+│   │   ├── crud.py
+│   │   ├── dependencies.py
+│   │   ├── models.py
+│   │   ├── responses.py
+│   │   ├── schemas.py
+│   │   ├── services.py
+│   │   ├── validators.py
+│   │   └── views.py
 │   ├── slots
 │   │   ├── __init__.py
 │   │   ├── crud.py
@@ -436,15 +449,15 @@ docker compose -f infra/docker-compose.yml logs -f
 </details>
 
 
-## Команда разработки:
+## Команда разработки
 
 Проект выполнен командой **Team 4** (Яндекс Практикум).
 
 
-- **Михаил Ковалев** — Teamlead, Backend-разработчик (Настройка проекта, Разработка базовых классов для моделей БД, базовый CRUD, Насройка кеширования (Redis), Deploy на сервек, настройка CI/CD) — GitHub: [ohhaus](https://github.com/ohhaus) — Telegram: [@ohhaus](https://t.me/ohhaus)
-- **Константин Клейников** — Backend-разработчик (Модуль Bookings, Настройка связыей с модулями Slots, Tables, Формирование Pastman Collections) — GitHub: [kkleinikov](https://github.com/kkleinikov) — Telegram: [@kkleinikov](https://t.me/kkleinikov)
+- **Михаил Ковалев** — Team Lead, Backend-разработчик (Настройка проекта, Разработка базовых классов для моделей БД, базовый CRUD, Настройка кэширования (Redis), Деплой на сервер, настройка CI/CD) — GitHub: [ohhaus](https://github.com/ohhaus) — Telegram: [@ohhaus](https://t.me/ohhaus)
+- **Константин Клейников** — Backend-разработчик (Модуль Bookings, Настройка связей с модулями Slots и Tables, Формирование Postman collection) — GitHub: [kkleinikov](https://github.com/kkleinikov) — Telegram: [@kkleinikov](https://t.me/kkleinikov)
 - **Никита Ефремчев** — Backend-разработчик (Модули Cafes, Slots, Tables, Алгоритм синхронизации связей менеджер-кафе, Настройка Celery и разработка логики отправки уведомлений) — GitHub: [StigTax](https://github.com/StigTax) — Telegram: [@Nik_efr](https://t.me/Nik_efr)
 - **Владимир Игнатьев** — Backend-разработчик (Модуль Dishes, Кастомизация исключений) — GitHub: [Ignatev-V](https://github.com/Ignatev-V) — Telegram: [@V_Ignatev](https://t.me/V_Ignatev)
 - **Евгений Бирюков** — Backend-разработчик (Модуль Users) — GitHub: [JinBir007](https://github.com/JinBir007) — Telegram: [@Yfg007](https://t.me/Yfg007)
-- **Максим Быстрых** — Backend-разработчик (Логирование, модуль Actions) —GitHub: [pro100max1996](https://github.com/pro100max1996) — Telegram: [@pro100maksim1996](https://t.me/pro100maksim1996)
+- **Максим Быстрых** — Backend-разработчик (Логирование, модуль Actions) — GitHub: [pro100max1996](https://github.com/pro100max1996) — Telegram: [@pro100maksim1996](https://t.me/pro100maksim1996)
 - **Сергей Гусев** — Backend-разработчик (Модуль Media) — GitHub: [SergeyGusev1](https://github.com/SergeyGusev1) — Telegram: [@magnatuch](https://t.me/magnatuch)
