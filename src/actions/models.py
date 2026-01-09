@@ -1,4 +1,3 @@
-# src/actions/models.py
 from typing import TYPE_CHECKING
 import uuid
 
@@ -6,7 +5,7 @@ from sqlalchemy import Column, ForeignKey, String, Table, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.config import MAX_ACTION_NAME_LENGTH
+from src.config import MAX_NAME_LENGTH
 from src.database import Base
 
 
@@ -14,7 +13,7 @@ if TYPE_CHECKING:
     from src.cafes.models import Cafe
 
 # Промежуточная таблица для связи между акциями и кафе
-action_cafe = Table(
+actions_cafes = Table(
     'actions_cafes',
     Base.metadata,
     Column(
@@ -42,12 +41,12 @@ class Action(Base):
     """
 
     name: Mapped[str] = mapped_column(
-        String(MAX_ACTION_NAME_LENGTH),
+        String(MAX_NAME_LENGTH),
         nullable=False,
         unique=True,
     )
     description: Mapped[str] = mapped_column(
-        Text,  # Используем Text для длинных описаний
+        Text,
         nullable=False,
     )
     photo_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -58,6 +57,7 @@ class Action(Base):
     # Связь многие-ко-многим с Cafe
     cafes: Mapped[list['Cafe']] = relationship(
         'Cafe',
-        secondary=action_cafe,
+        secondary=actions_cafes,
         back_populates='actions',
+        lazy='selectin',
     )

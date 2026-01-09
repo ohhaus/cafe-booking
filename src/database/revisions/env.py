@@ -8,7 +8,15 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from src.config import settings
-import src.models # noqa
+# Импортируем все модели, чтобы Alembic их видел
+from src.actions.models import Action
+from src.booking.models import Booking, BookingTableSlot
+from src.cafes.models import Cafe
+from src.dishes.models import Dish
+from src.slots.models import Slot
+from src.tables.models import Table
+from src.users.models import User
+
 from src.database import Base
 
 

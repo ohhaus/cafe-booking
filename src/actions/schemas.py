@@ -53,9 +53,12 @@ class ActionUpdate(BaseModel):
     )
     cafes_id: Optional[List[UUID]] = Field(
         None,
-        max_length=1,
+        min_length=1,
         description='Список ID кафе, где проводится акция',
     )
+    is_active: Optional[bool] = None
+
+    model_config = ConfigDict(extra='forbid')
 
 
 class ActionInfo(BaseAction):
