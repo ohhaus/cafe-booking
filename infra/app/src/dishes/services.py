@@ -1,5 +1,3 @@
-# src/dishes/services.py
-
 import logging
 from typing import List, Optional
 from uuid import UUID
@@ -121,6 +119,48 @@ class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
             )
             raise
 
+    async def _apply_cafes_update(
+        self,
+        session: AsyncSession,
+        dish: Dish,
+        cafes_ids: list[UUID] | None,
+        user_id: str,
+        dish_id: UUID,
+    ) -> None:
+        """Приватная логика для обновления связи `dish.cafes`.
+
+        - игнорирует отсутствие поля (None)
+        - проверяет и присваивает объекты `Cafe` если передан непустой список
+        - очищает связь, если передан пустой список
+        """
+        if cafes_ids is None:
+            return
+
+        cafes_ids = list(dict.fromkeys(cafes_ids))
+
+        if cafes_ids:
+            try:
+                cafes = await validate_active_cafes_ids(
+                    session=session,
+                    cafes_ids=cafes_ids,
+                )
+            except NotFoundException:
+                logger.warning(
+                    'Часть ID Кафе не найдено или не активны '
+                    'при обновлении блюда',
+                    extra={
+                        'user_id': user_id,
+                        'dish_id': str(dish_id),
+                        'missing_cafes_ids': [str(x) for x in cafes_ids],
+                    },
+                )
+                await session.rollback()
+                raise
+            dish.cafes = cafes
+        else:
+            # пришёл пустой список — очищаем связь
+            dish.cafes = []
+
     async def update_dish_service(
         self,
         *,
@@ -156,44 +196,16 @@ class DishService(DatabaseService[Dish, DishCreate, DishUpdate]):
         data = dish_update.model_dump(exclude_unset=True)
         cafes_ids = data.pop('cafes_id', None)
 
-        if cafes_ids:
-            cafes_ids = list(dict.fromkeys(cafes_ids))
-
         try:
-            if cafes_ids:
-                try:
-                    cafes = await validate_active_cafes_ids(
-                        session=session,
-                        cafes_ids=cafes_ids,
-                    )
-                except NotFoundException:
-                    logger.warning(
-                        'Часть ID Кафе не найдено или не активны '
-                        'при обновлении блюда',
-                        extra={
-                            'user_id': user_id,
-                            'dish_id': str(dish_id),
-                            'missing_cafes_ids': [str(x) for x in cafes_ids],
-                        },
-                    )
-                    await session.rollback()
-                    raise
-                dish.cafes = cafes
-            else:
-                # пришёл пустой список — очищаем связь
-                logger.warning(
-                    'Нельзя обновить блюдо %s с пустым списком кафе',
-                    str(dish_id),
-                    extra={
-                        'user_id': user_id,
-                        'dish_id': str(dish_id),
-                        'missing_cafes_ids': [str(x) for x in cafes_ids],
-                    },
-                )
-                await session.rollback()
-                raise ValidationErrorException(
-                    'Список кафе для блюда не может быть пустым',
-                )
+            # делегируем обновление связи кафе в приватный метод
+            await self._apply_cafes_update(
+                session=session,
+                dish=dish,
+                cafes_ids=cafes_ids,
+                user_id=user_id,
+                dish_id=dish_id,
+            )
+
             dish = await dishes_crud.update_dish(
                 session=session,
                 dish=dish,
