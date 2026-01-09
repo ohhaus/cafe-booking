@@ -45,8 +45,14 @@ celery_app.conf.update(
 celery_app.autodiscover_tasks(['src.celery.tasks'])
 
 celery_app.conf.beat_schedule = {
-    'daily-reminders': {
+    'daily-reminders-morning': {
         'task': 'src.celery.tasks.daily_reminders.send_daily_reminders',
         'schedule': crontab(minute=0, hour=9),
+        'args': ('morning',),
+    },
+    'daily-reminders-evening': {
+        'task': 'src.celery.tasks.daily_reminders.send_daily_reminders',
+        'schedule': crontab(minute=0, hour=18),
+        'args': ('evening',),
     },
 }
