@@ -1,3 +1,4 @@
+from src.actions.models import Action, actions_cafes
 from src.booking.models import Booking, BookingStatus, BookingTableSlot
 from src.cafes.models import Cafe, cafes_managers
 from src.database.base import Base
@@ -18,6 +19,8 @@ __all__ = [
     'Slot',
     'Dish',
     'dish_cafe',
+    'Action',
+    'actions_cafes',
     'Booking',
     'BookingStatus',
     'BookingTableSlot',

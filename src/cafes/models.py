@@ -18,6 +18,7 @@ from sqlalchemy.orm import (
     relationship,
 )
 
+from src.actions.models import actions_cafes
 from src.booking.models import Booking
 from src.config import (
     MAX_ADDRESS_LENGTH,
@@ -32,6 +33,7 @@ from src.users.models import User, UserRole
 
 
 if TYPE_CHECKING:
+    from src.actions.models import Action
     from src.slots.models import Slot
     from src.tables.models import Table
 
@@ -129,6 +131,12 @@ class Cafe(Base):
         'ImageMedia',
         lazy='selectin',
         foreign_keys={photo_id},
+    )
+    actions: Mapped[list['Action']] = relationship(
+        'Action',
+        secondary=actions_cafes,
+        back_populates='cafes',
+        lazy='selectin',
     )
 
     __table_args__ = (
