@@ -13,9 +13,6 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    outputs:
-      app_image: ${{ steps.set_app_image.outputs.image }}
-      nginx_image: ${{ steps.set_nginx_image.outputs.image }}
     steps:
       - name: 📥 Checkout
         uses: actions/checkout@v4
@@ -26,7 +23,6 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      # --- Build & Push App ---
       - name: 🐳 Сборка и публикация приложения
         uses: docker/build-push-action@v5
         with:
@@ -37,11 +33,6 @@ jobs:
             ${{ env.APP_IMAGE }}:latest
             ${{ env.APP_IMAGE }}:${{ github.sha }}
 
-      - name: 📝 Установка output для приложения
-        id: set_app_image
-        run: echo "image=${{ env.APP_IMAGE }}:${{ github.sha }}" >> $GITHUB_OUTPUT
-
-      # --- Build & Push NGINX ---
       - name: 🌐 Сборка и публикация NGINX
         uses: docker/build-push-action@v5
         with:
@@ -51,10 +42,6 @@ jobs:
           tags: |
             ${{ env.NGINX_IMAGE }}:latest
             ${{ env.NGINX_IMAGE }}:${{ github.sha }}
-
-      - name: 📝 Установка output для NGINX
-        id: set_nginx_image
-        run: echo "image=${{ env.NGINX_IMAGE }}:${{ github.sha }}" >> $GITHUB_OUTPUT
 
   deploy:
     runs-on: ubuntu-latest
@@ -71,24 +58,25 @@ jobs:
             cd cafe-booking
             sudo docker compose -f docker-compose-production.yml pull
             sudo docker compose -f docker-compose-production.yml up -d --remove-orphans
-
             sudo docker image prune -af
 
       - name: 🏥 Health Check
         run: |
-          echo "⏳ Ожидание запуска сервиса по ${{ env.HEALTH_URL }} ..."
-          sleep 5
+          echo "⏳ Ожидание запуска сервиса..."
+          sleep 10
+          
           for i in {1..30}; do
-            RESULT=$(curl -s -w "%{http_code}" ${{ env.HEALTH_URL }})
-            BODY="${RESULT::-3}"
-            CODE="${RESULT: -3}"
-            if [[ "$CODE" == "200" && "$BODY" == "ok" ]]; then
-              echo "✅ Сервис успешно запущен!"
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.HEALTH_URL }})
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Сервис успешно запущен! (HTTP 200)"
               exit 0
             fi
-            echo "Попытка $i/30 - сервис еще не готов (код $CODE, ответ: $BODY)"
+            
+            echo "Попытка $i/30 - код ответа: $HTTP_CODE"
             sleep 5
           done
+          
           echo "❌ Сервис не прошел health check за 150 секунд!"
           exit 1
 
@@ -100,11 +88,11 @@ jobs:
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
             ✅ *Деплой успешен*
-
+            
             🌿 Ветка: main
             🧾 Коммит: `${{ github.sha }}`
             🏥 Health: ${{ env.HEALTH_URL }}
-
+            
             Сервис работает штатно!
 
       - name: 📣 Уведомление при ошибке
@@ -115,8 +103,8 @@ jobs:
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           message: |
             ❌ *Деплой провален*
-
+            
             🌿 Ветка: main
             🧾 Коммит: `${{ github.sha }}`
-
+            
             Проверь логи: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
