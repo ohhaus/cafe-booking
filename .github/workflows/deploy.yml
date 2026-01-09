@@ -72,9 +72,7 @@ jobs:
             sudo docker compose -f docker-compose-production.yml pull
             sudo docker compose -f docker-compose-production.yml up -d --remove-orphans
 
-            # Удаляем только образы приложения и NGINX
-            sudo docker image prune -af --filter "reference=${{ env.APP_IMAGE }}:*"
-            sudo docker image prune -af --filter "reference=${{ env.NGINX_IMAGE }}:*"
+            sudo docker image prune -af
 
       - name: 🏥 Health Check
         run: |
