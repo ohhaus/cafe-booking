@@ -48,7 +48,10 @@ def _calc_target_date(target_date: str | None) -> date:
     return (now_local + timedelta(days=1)).date()
 
 
-async def _send_daily_booking_reminders_async(target_date: str | None) -> int:
+async def _send_daily_booking_reminders_async(
+    target_date: str | None,
+    reminder_kind: str,
+) -> int:
     notification = NotificationServise()
     day = _calc_target_date(target_date)
 
@@ -77,7 +80,14 @@ async def _send_daily_booking_reminders_async(target_date: str | None) -> int:
 
     sent = 0
     for email, items in by_user_email.items():
-        subject = f'Напоминание о бронированиях на {day.isoformat()}'
+        if reminder_kind == 'morning':
+            subject = (
+                f'Утреннее напоминание о бронированиях на {day.isoformat()}'
+            )
+        else:
+            subject = (
+                f'Вечернее напоминание: бронирования на {day.isoformat()}'
+            )
         lines = []
         for b in items:
             lines.append(
@@ -97,7 +107,7 @@ async def _send_daily_booking_reminders_async(target_date: str | None) -> int:
         </html>
         """
 
-        await notification.send_email([email], subject, body)
+        await notification._send_email([email], subject, body)
         sent += 1
 
     logger.info(
@@ -117,10 +127,16 @@ async def _send_daily_booking_reminders_async(target_date: str | None) -> int:
 )
 def send_daily_reminders(
     self: Task,
+    reminder_kind: str = 'morning',
     target_date: str | None = None,
 ) -> int:
     """Ежедневные напоминания клиентам о бронированиях.
 
     Обычно запускается Celery Beat раз в день.
     """
-    return run_async(_send_daily_booking_reminders_async(target_date))
+    return run_async(
+        _send_daily_booking_reminders_async(
+            target_date,
+            reminder_kind,
+        ),
+    )

@@ -1,0 +1,124 @@
+name: 🚀 CI/CD Cafe Booking
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  APP_IMAGE: ${{ secrets.DOCKER_USERNAME }}/cafe-booking-app
+  NGINX_IMAGE: ${{ secrets.DOCKER_USERNAME }}/cafe-booking-nginx
+  HEALTH_URL: https://bron-team4.hix-cloud.ru/health
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      app_image: ${{ steps.set_app_image.outputs.image }}
+      nginx_image: ${{ steps.set_nginx_image.outputs.image }}
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔐 Docker login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      # --- Build & Push App ---
+      - name: 🐳 Сборка и публикация приложения
+        uses: docker/build-push-action@v5
+        with:
+          context: infra/app
+          file: infra/app/Dockerfile
+          push: true
+          tags: |
+            ${{ env.APP_IMAGE }}:latest
+            ${{ env.APP_IMAGE }}:${{ github.sha }}
+
+      - name: 📝 Установка output для приложения
+        id: set_app_image
+        run: echo "image=${{ env.APP_IMAGE }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      # --- Build & Push NGINX ---
+      - name: 🌐 Сборка и публикация NGINX
+        uses: docker/build-push-action@v5
+        with:
+          context: infra/nginx
+          file: infra/nginx/Dockerfile
+          push: true
+          tags: |
+            ${{ env.NGINX_IMAGE }}:latest
+            ${{ env.NGINX_IMAGE }}:${{ github.sha }}
+
+      - name: 📝 Установка output для NGINX
+        id: set_nginx_image
+        run: echo "image=${{ env.NGINX_IMAGE }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: 🚀 Деплой на сервер
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          passphrase: ${{ secrets.SERVER_SSH_PASSPHRASE }}
+          script: |
+            cd cafe-booking
+            sudo docker compose -f docker-compose-production pull
+            sudo docker compose -f docker-compose-production up -d --remove-orphans
+
+            # Удаляем только образы приложения и NGINX
+            sudo docker image prune -af --filter "reference=${{ env.APP_IMAGE }}:*"
+            sudo docker image prune -af --filter "reference=${{ env.NGINX_IMAGE }}:*"
+
+      - name: 🏥 Health Check
+        run: |
+          echo "⏳ Ожидание запуска сервиса по ${{ env.HEALTH_URL }} ..."
+          sleep 5
+          for i in {1..30}; do
+            RESULT=$(curl -s -w "%{http_code}" ${{ env.HEALTH_URL }})
+            BODY="${RESULT::-3}"
+            CODE="${RESULT: -3}"
+            if [[ "$CODE" == "200" && "$BODY" == "ok" ]]; then
+              echo "✅ Сервис успешно запущен!"
+              exit 0
+            fi
+            echo "Попытка $i/30 - сервис еще не готов (код $CODE, ответ: $BODY)"
+            sleep 5
+          done
+          echo "❌ Сервис не прошел health check за 150 секунд!"
+          exit 1
+
+      - name: 📣 Уведомление при успехе
+        if: success()
+        uses: appleboy/telegram-action@v1.0.0
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            ✅ *Деплой успешен*
+
+            🌿 Ветка: main
+            🧾 Коммит: `${{ github.sha }}`
+            🏥 Health: ${{ env.HEALTH_URL }}
+
+            Сервис работает штатно!
+
+      - name: 📣 Уведомление при ошибке
+        if: failure()
+        uses: appleboy/telegram-action@v1.0.0
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            ❌ *Деплой провален*
+
+            🌿 Ветка: main
+            🧾 Коммит: `${{ github.sha }}`
+
+            Проверь логи: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
