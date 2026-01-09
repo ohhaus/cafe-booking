@@ -4,14 +4,14 @@
 
 ## Основной функционал
 
-- Управление пользователями (создание/ редактирование/ блокировка-разблокировка)
+- Управление пользователями (создание, редактирование, блокировка и разблокировка)
 - Авторизация пользователей
-- Бронирование столов в кафе с выбором даты, времени
+- Бронирование столов в кафе с выбором даты и времени
 - Предоставление информации о действующих акциях
 - Предоставление информации о доступных блюдах
 - Управление бронированием
 - Напоминание о бронировании
-- Уведомление администратора о бронировании/ изменении бронирования
+- Уведомление администратора о бронировании и изменении бронирования
 
 ## Технологический стек
 
@@ -43,15 +43,13 @@
 
 **Фоновые задачи**
 - Celery `5.6.0`
-- Redis (клиент) `7.1.0`
+- Redis (broker/backend) `7.1.0`
 - Flower `2.0.1`
 - kombu `5.6.1`, amqp `5.3.1`
 
 **HTTP и аутентификация**
 - HTTPX `0.28.1`
 - PyJWT `2.8.0`
-
-### Безопасность и криптография
 
 **Тестирование**
 - pytest `9.0.2`
@@ -110,7 +108,7 @@ git clone git@github.com:Yandex-Practicum-Students/57_58_booking_seats_team_4.gi
 python -m venv venv
 . venv/Scripts/activate
 
-# Linux и MacOS:
+# Linux и macOS:
 python3 -m venv venv
 source venv/bin/activate
 ```
@@ -137,44 +135,96 @@ pip install -r src/requirements.txt
 
 cp .env.example .env
 
-# Настройки подключения к БД
-POSTGRES_USER=username
-POSTGRES_PASSWORD=password
-POSTGRES_DB=db_name
-POSTGRES_SERVER=server_address
-POSTGRES_PORT=server_port
-
-# Опциональные настройки пула/логирования SQL
+# ==================================================
+# DATABASE
+# ==================================================
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/postgres
 DATABASE_POOL_TIMEOUT=30
 DATABASE_POOL_RECYCLE=1800
 DATABASE_POOL_SIZE=20
 DATABASE_MAX_OVERFLOW=30
 DATABASE_POOL_PING=true
 DATABASE_ECHO_SQL=false
+DATABASE_USER=postgres
+DATABASE_PASSWORD=postgres
+DATABASE_PORT=5432
+DATABASE_HOST=postgres
 
-# Redis
-REDIS_URL=redis://localhost:6379/0 # DB для кешей/вспомогательных данных
+# ==================================================
+# REDIS
+# ==================================================
+REDIS_URL=redis://redis:6379/0
 REDIS_PASSWORD=password
+REDIS_SOCKET_CONNECTION_TIMEOUT=5
+REDIS_SOCKET_TIMEOUT=5
+REDIS_RETRY_ON_TIMEOUT=true
+REDIS_MAX_CONNECTIONS=10
 
-# Celery
-CELERY_BROKER_DB=1 # Redis DB для брокера (очереди задач)
-CELERY_RESULT_DB=2 # Redis DB для result-backend (результаты задач)
+# ==================================================
+# CELERY
+# ==================================================
+CELERY_BROKER_DB=1
+CELERY_RESULT_DB=2
 CELERY_TIMEZONE=Europe/Moscow
 CELERY_ENABLE_UTC=true
+CELERY_TASK_SERIALIZER=json
+CELERY_RESULT_SERIALIZER=json
+CELERY_ACCEPT_CONTENT=["json"]
+CELERY_TASK_IGNORE_RESULT=false
 CELERY_TASK_TRACK_STARTED=true
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP=true
+CELERY_TASK_TIME_LIMIT=300
+CELERY_TASK_SOFT_TIME_LIMIT=240
 
-# Параметры для отправки уведомлений по почте
-MAIL_SERVER=smtp.yandex.ru
-MAIL_PORT=465 # Порт SMTP (465 для SSL)
-MAIL_SSL=true # Использовать SSL (для 465 должно быть true)
-MAIL_TLS=false # STARTTLS (для 587 true, для 465 обычно false)
-MAIL_USERNAME=your_login@yandex.ru
-MAIL_PASSWORD=app_password # Пароль приложения (не обычный пароль от аккаунта)
-MAIL_FROM=your_login@yandex.ru
-MAIL_FROM_NAME=Cafe Booking System # Отображаемое имя отправителя
+# ==================================================
+# AUTH / JWT
+# ==================================================
+AUTH_SECRET_KEY=super_ultra_secret_key_min_64_chars_change_me
+AUTH_ACCESS_TOKEN_EXPIRE_MINUTES=6000
+AUTH_ALGORITHM=HS256
+
+# ==================================================
+# CACHE
+# ==================================================
+CACHE_TTL_CAFES_LIST=600
+CACHE_TTL_CAFE_BY_ID=1800
+CACHE_TTL_CAFE_ACTIVE=300
+CACHE_TTL_DISHES_LIST=900
+CACHE_TTL_DISH_BY_ID=1800
+CACHE_TTL_ACTIONS_LIST=300
+CACHE_TTL_ACTION_BY_ID=900
+CACHE_TTL_CAFE_TABLES=120
+CACHE_TTL_CAFE_TABLE=300
+CACHE_TTL_CAFE_TABLE_ACTIVE=300
+CACHE_TTL_CAFE_SLOTS=120
+CACHE_TTL_CAFE_SLOT=300
+CACHE_TTL_CAFE_SLOT_ACTIVE=300
+CACHE_TTL_MEDIA=3600
+CACHE_TTL_MANAGER_CUD_CAFE=120
+CACHE_TTL_CAFE_META=120
+
+# ==================================================
+# MAIL
+# ==================================================
+MAIL_SERVER=smtp.example.com
+MAIL_PORT=465
+MAIL_SSL=true
+MAIL_TLS=false
+MAIL_USERNAME=your_email@example.com
+MAIL_PASSWORD=your_smtp_password
+MAIL_FROM=your_email@example.com
+MAIL_FROM_NAME=Cafe Booking
 MAIL_USE_CREDENTIALS=true
 MAIL_VALIDATE_CREDS=true
+
+# ==================================================
+# SUPERUSER
+# ==================================================
+SUPERUSER_USERNAME=admin
+SUPERUSER_EMAIL=admin@example.com
+SUPERUSER_PHONE=+79999999999
+SUPERUSER_PASSWORD=ChangeMe123!
+SUPERUSER_TG_ID=123456789
 ```
 
 ### Запуск проекта
@@ -209,7 +259,7 @@ docker compose -f infra/docker-compose.yml exec app alembic revision --autogener
 # список контейнеров и их статус
 docker compose -f infra/docker-compose.yml ps
 
-# Вывод логов в терминал (для тихого режима)
+# Вывод логов в терминал (для режима -d)
 docker compose -f infra/docker-compose.yml logs -f
 # Остановить просмотр логов: Ctrl + C
 ```
@@ -236,7 +286,7 @@ docker compose -f infra/docker-compose.yml logs -f
 
 ## Основные запросы API
 
-| Endpoint                                | Метод | Описание                                                                     | Доступ                      |
+| Endpoint | Method | Description | Access |
 | --------------------------------------- | ----- | ---------------------------------------------------------------------------- | --------------------------- |
 | `/auth/login`                           | POST  | Получение токена авторизации (логин + пароль)                                | Гость                       |
 | `/users/`                               | POST  | Регистрация нового пользователя                                              | Гость                       |
@@ -267,7 +317,6 @@ docker compose -f infra/docker-compose.yml logs -f
 | `/booking/{booking_id}`                 | PATCH | Частичное обновление бронирования                                            | Авторизованный пользователь |
 | `/media/`                               | POST  | Загрузить изображение                                                        | Администратор / Менеджер    |
 | `/media/{image_id}`                     | GET   | Скачать изображение по ID (если активно)                                     | Гость                       |
-
 
 Полный перечень моделей, входных и выходных параметров можно изучить в Swagger UI или ReDoc.
 
@@ -317,7 +366,13 @@ docker compose -f infra/docker-compose.yml logs -f
 │   └── README.md
 ├── src
 │   ├── actions
-│   │   └── __init__.py
+│   │   ├── __init__.py
+│   │   ├── models.py
+│   │   ├── responses.py
+│   │   ├── schemas.py
+│   │   ├── service.py
+│   │   ├── validators.py
+│   │   └── views.py
 │   ├── auth
 │   │   ├── __init__.py
 │   │   ├── responses.py
@@ -391,6 +446,16 @@ docker compose -f infra/docker-compose.yml logs -f
 │   │   ├── services.py
 │   │   ├── validators.py
 │   │   └── views.py
+│   ├── media
+│   │   ├── __init__.py
+│   │   ├── crud.py
+│   │   ├── dependencies.py
+│   │   ├── models.py
+│   │   ├── responses.py
+│   │   ├── schemas.py
+│   │   ├── services.py
+│   │   ├── validators.py
+│   │   └── views.py
 │   ├── slots
 │   │   ├── __init__.py
 │   │   ├── crud.py
@@ -436,15 +501,15 @@ docker compose -f infra/docker-compose.yml logs -f
 </details>
 
 
-## Команда разработки:
+## Команда разработки
 
 Проект выполнен командой **Team 4** (Яндекс Практикум).
 
 
-- **Михаил Ковалев** — Teamlead, Backend-разработчик, DevOps (Настройка проекта, Разработка базовых классов для моделей БД, базовый CRUD, Настройка кэширования (Redis), Deploy на сервер, настройка CI/CD) — GitHub: [ohhaus](https://github.com/ohhaus) — Telegram: [@ohhaus](https://t.me/ohhaus)
-- **Константин Клейников** — Backend-разработчик (Модуль Bookings, Настройка связей с модулями Slots, Tables, Формирование Pastman Collections) — GitHub: [kkleinikov](https://github.com/kkleinikov) — Telegram: [@kkleinikov](https://t.me/kkleinikov)
+- **Михаил Ковалев** — Team Lead, Backend-разработчик (Настройка проекта, Разработка базовых классов для моделей БД, базовый CRUD, Настройка кэширования (Redis), Деплой на сервер, настройка CI/CD) — GitHub: [ohhaus](https://github.com/ohhaus) — Telegram: [@ohhaus](https://t.me/ohhaus)
+- **Константин Клейников** — Backend-разработчик (Модуль Bookings, Настройка связей с модулями Slots и Tables, Формирование Postman collection) — GitHub: [kkleinikov](https://github.com/kkleinikov) — Telegram: [@kkleinikov](https://t.me/kkleinikov)
 - **Никита Ефремчев** — Backend-разработчик (Модули Cafes, Slots, Tables, Алгоритм синхронизации связей менеджер-кафе, Настройка Celery и разработка логики отправки уведомлений) — GitHub: [StigTax](https://github.com/StigTax) — Telegram: [@Nik_efr](https://t.me/Nik_efr)
 - **Владимир Игнатьев** — Backend-разработчик (Модуль Dishes, Кастомизация исключений) — GitHub: [Ignatev-V](https://github.com/Ignatev-V) — Telegram: [@V_Ignatev](https://t.me/V_Ignatev)
 - **Евгений Бирюков** — Backend-разработчик (Модуль Users) — GitHub: [JinBir007](https://github.com/JinBir007) — Telegram: [@Yfg007](https://t.me/Yfg007)
-- **Максим Быстрых** — Backend-разработчик (Логирование, модуль Actions) —GitHub: [pro100max1996](https://github.com/pro100max1996) — Telegram: [@pro100maksim1996](https://t.me/pro100maksim1996)
+- **Максим Быстрых** — Backend-разработчик (Логирование, модуль Actions) — GitHub: [pro100max1996](https://github.com/pro100max1996) — Telegram: [@pro100maksim1996](https://t.me/pro100maksim1996)
 - **Сергей Гусев** — Backend-разработчик (Модуль Media) — GitHub: [SergeyGusev1](https://github.com/SergeyGusev1) — Telegram: [@magnatuch](https://t.me/magnatuch)
