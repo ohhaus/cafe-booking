@@ -70,8 +70,8 @@
 
 ```bash
 # 1) Склонировать репозиторий
-git clone git@github.com:Yandex-Practicum-Students/57_58_booking_seats_team_4.git
-cd 57_58_booking_seats_team_4
+git clone git@github.com:ohhaus/cafe-booking.git
+cd cafe-booking
 
 # 2) Создать .env
 cp .env.example .env
@@ -96,7 +96,7 @@ docker compose -f infra/docker-compose.yml exec app alembic upgrade head
 ### Клонирование удаленного репозитория на локальную машину
 
 ```bash
-git clone git@github.com:Yandex-Practicum-Students/57_58_booking_seats_team_4.git
+git clone git@github.com:ohhaus/cafe-booking.git
 ```
 
 ### Активация виртуального окружения
