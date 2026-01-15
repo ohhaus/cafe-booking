@@ -72,17 +72,14 @@
 
 ```bash
 # 1) Склонировать репозиторий
-git clone git@github.com:Yandex-Practicum-Students/57_58_booking_seats_team_4.git
-cd 57_58_booking_seats_team_4
+git clone git@github.com:ohhaus/cafe-booking.git
+cd cafe-booking
 
 # 2) Создать .env
 cp .env.example .env
 
 # 3) Собрать и запустить контейнеры
 docker compose -f infra/docker-compose.yml up -d --build
-
-# 4) Применить миграции
-docker compose -f infra/docker-compose.yml exec app alembic upgrade head
 ```
 
 ### Проверка
@@ -98,7 +95,7 @@ docker compose -f infra/docker-compose.yml exec app alembic upgrade head
 ### Клонирование удаленного репозитория на локальную машину
 
 ```bash
-git clone git@github.com:Yandex-Practicum-Students/57_58_booking_seats_team_4.git
+git clone git@github.com:ohhaus/cafe-booking.git
 ```
 
 ### Активация виртуального окружения
@@ -187,20 +184,6 @@ MAIL_VALIDATE_CREDS=true
 docker compose -f infra/docker-compose.yml up -d --build
 # Режим с выводом логов в терминале:
 docker compose -f infra/docker-compose.yml up --build
-```
-
-### Миграции
-
-Применение миграций (при запущенных контейнерах):
-
-```bash
-docker compose -f infra/docker-compose.yml exec app alembic upgrade head
-```
-
-Создание новой миграции (если нужно):
-
-```bash
-docker compose -f infra/docker-compose.yml exec app alembic revision --autogenerate -m "describe_change"
 ```
 
 ### Полезные команды Docker
@@ -441,10 +424,10 @@ docker compose -f infra/docker-compose.yml logs -f
 Проект выполнен командой **Team 4** (Яндекс Практикум).
 
 
-- **Михаил Ковалев** — Teamlead, Backend-разработчик (Настройка проекта, Разработка базовых классов для моделей БД, базовый CRUD, Насройка кеширования (Redis), Deploy на сервек, настройка CI/CD) — GitHub: [ohhaus](https://github.com/ohhaus) — Telegram: [@ohhaus](https://t.me/ohhaus)
-- **Константин Клейников** — Backend-разработчик (Модуль Bookings, Настройка связыей с модулями Slots, Tables, Формирование Pastman Collections) — GitHub: [kkleinikov](https://github.com/kkleinikov) — Telegram: [@kkleinikov](https://t.me/kkleinikov)
+- **Михаил Ковалев** — Team Lead, Backend-разработчик (Настройка проекта, Разработка базовых классов для моделей БД, базовый CRUD, Кэширование (Redis), Деплой на сервер, CI/CD) — GitHub: [ohhaus](https://github.com/ohhaus) — Telegram: [@ohhaus](https://t.me/ohhaus)
+- **Константин Клейников** — Backend-разработчик (Модуль Bookings, Настройка связей с модулями Slots и Tables, Формирование Postman collection) — GitHub: [kkleinikov](https://github.com/kkleinikov) — Telegram: [@kkleinikov](https://t.me/kkleinikov)
 - **Никита Ефремчев** — Backend-разработчик (Модули Cafes, Slots, Tables, Алгоритм синхронизации связей менеджер-кафе, Настройка Celery и разработка логики отправки уведомлений) — GitHub: [StigTax](https://github.com/StigTax) — Telegram: [@Nik_efr](https://t.me/Nik_efr)
 - **Владимир Игнатьев** — Backend-разработчик (Модуль Dishes, Кастомизация исключений) — GitHub: [Ignatev-V](https://github.com/Ignatev-V) — Telegram: [@V_Ignatev](https://t.me/V_Ignatev)
 - **Евгений Бирюков** — Backend-разработчик (Модуль Users) — GitHub: [JinBir007](https://github.com/JinBir007) — Telegram: [@Yfg007](https://t.me/Yfg007)
-- **Максим Быстрых** — Backend-разработчик (Логирование, модуль Actions) —GitHub: [pro100max1996](https://github.com/pro100max1996) — Telegram: [@pro100maksim1996](https://t.me/pro100maksim1996)
+- **Максим Быстрых** — Backend-разработчик (Логирование, модуль Actions) — GitHub: [pro100max1996](https://github.com/pro100max1996) — Telegram: [@pro100maksim1996](https://t.me/pro100maksim1996)
 - **Сергей Гусев** — Backend-разработчик (Модуль Media) — GitHub: [SergeyGusev1](https://github.com/SergeyGusev1) — Telegram: [@magnatuch](https://t.me/magnatuch)
